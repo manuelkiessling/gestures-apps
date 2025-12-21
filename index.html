@@ -182,9 +182,9 @@
         
         // ============ SCENE ============
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e);
+        scene.background = new THREE.Color(0x050510); // Deep space black with slight blue tint
         
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
         camera.position.set(0, 3, 14);
         camera.lookAt(0, -1, 0);
         
@@ -192,6 +192,187 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.getElementById('container').appendChild(renderer.domElement);
+        
+        // ============ SPACE BACKGROUND (Performance optimized) ============
+        // Uses THREE.Points for a single draw call rendering thousands of stars
+        
+        function createStarfield() {
+            const starCount = 3000;
+            const positions = new Float32Array(starCount * 3);
+            const colors = new Float32Array(starCount * 3);
+            const sizes = new Float32Array(starCount);
+            
+            // Distribute stars in a large sphere around the scene
+            const radius = 200;
+            
+            for (let i = 0; i < starCount; i++) {
+                // Spherical distribution for uniform coverage
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                const r = radius * (0.5 + Math.random() * 0.5); // Vary distance
+                
+                positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = r * Math.cos(phi);
+                
+                // Star colors: mostly white/blue-white, occasional warm stars
+                const colorRoll = Math.random();
+                if (colorRoll < 0.7) {
+                    // Blue-white stars (most common)
+                    colors[i * 3] = 0.8 + Math.random() * 0.2;
+                    colors[i * 3 + 1] = 0.85 + Math.random() * 0.15;
+                    colors[i * 3 + 2] = 1.0;
+                } else if (colorRoll < 0.85) {
+                    // Pure white
+                    colors[i * 3] = 1.0;
+                    colors[i * 3 + 1] = 1.0;
+                    colors[i * 3 + 2] = 1.0;
+                } else if (colorRoll < 0.95) {
+                    // Yellow/orange stars
+                    colors[i * 3] = 1.0;
+                    colors[i * 3 + 1] = 0.8 + Math.random() * 0.15;
+                    colors[i * 3 + 2] = 0.5 + Math.random() * 0.3;
+                } else {
+                    // Red giants (rare)
+                    colors[i * 3] = 1.0;
+                    colors[i * 3 + 1] = 0.4 + Math.random() * 0.2;
+                    colors[i * 3 + 2] = 0.3 + Math.random() * 0.2;
+                }
+                
+                // Star sizes: mostly small, few bright ones
+                const sizeRoll = Math.random();
+                if (sizeRoll < 0.8) {
+                    sizes[i] = 0.5 + Math.random() * 1.0; // Small stars
+                } else if (sizeRoll < 0.95) {
+                    sizes[i] = 1.5 + Math.random() * 1.5; // Medium stars
+                } else {
+                    sizes[i] = 3.0 + Math.random() * 2.0; // Bright stars
+                }
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            
+            // Custom shader for efficient star rendering with size attenuation
+            const starMaterial = new THREE.ShaderMaterial({
+                uniforms: {},
+                vertexShader: `
+                    attribute float size;
+                    varying vec3 vColor;
+                    void main() {
+                        vColor = color;
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        gl_PointSize = size * (200.0 / -mvPosition.z);
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColor;
+                    void main() {
+                        // Circular star with soft glow
+                        vec2 center = gl_PointCoord - vec2(0.5);
+                        float dist = length(center);
+                        if (dist > 0.5) discard;
+                        
+                        // Soft falloff for glow effect
+                        float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+                        gl_FragColor = vec4(vColor, alpha);
+                    }
+                `,
+                transparent: true,
+                vertexColors: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+            });
+            
+            const stars = new THREE.Points(geometry, starMaterial);
+            scene.add(stars);
+            return stars;
+        }
+        
+        // Create distant nebula clouds (very cheap - just a few large transparent planes)
+        function createNebulae() {
+            const nebulaGroup = new THREE.Group();
+            
+            // Create a few nebula "clouds" using simple gradient circles
+            const nebulaColors = [
+                { color: 0x4a1a6b, opacity: 0.08 }, // Purple
+                { color: 0x1a3a6b, opacity: 0.06 }, // Blue
+                { color: 0x6b1a3a, opacity: 0.05 }, // Magenta
+            ];
+            
+            for (let i = 0; i < 5; i++) {
+                const colorData = nebulaColors[i % nebulaColors.length];
+                const size = 80 + Math.random() * 120;
+                
+                // Simple plane with radial gradient texture (created once)
+                const canvas = document.createElement('canvas');
+                canvas.width = 128;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                
+                const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+                gradient.addColorStop(0, `rgba(255, 255, 255, ${colorData.opacity})`);
+                gradient.addColorStop(0.4, `rgba(255, 255, 255, ${colorData.opacity * 0.5})`);
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 128, 128);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                
+                const nebulaMat = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    color: colorData.color,
+                    transparent: true,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending,
+                    side: THREE.DoubleSide,
+                });
+                
+                const nebulaGeo = new THREE.PlaneGeometry(size, size);
+                const nebula = new THREE.Mesh(nebulaGeo, nebulaMat);
+                
+                // Position far away in random direction
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                const dist = 120 + Math.random() * 50;
+                
+                nebula.position.set(
+                    dist * Math.sin(phi) * Math.cos(theta),
+                    dist * Math.sin(phi) * Math.sin(theta),
+                    dist * Math.cos(phi)
+                );
+                
+                // Face the camera (billboard effect is automatic with lookAt)
+                nebula.lookAt(0, 0, 0);
+                
+                nebulaGroup.add(nebula);
+            }
+            
+            scene.add(nebulaGroup);
+            return nebulaGroup;
+        }
+        
+        const starfield = createStarfield();
+        const nebulae = createNebulae();
+        
+        // ============ LIGHTING (Space-themed, minimal for performance) ============
+        // Ambient light for base visibility
+        const ambientLight = new THREE.AmbientLight(0x334455, 0.4);
+        scene.add(ambientLight);
+        
+        // Main directional light (like a distant star)
+        const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        mainLight.position.set(10, 20, 15);
+        scene.add(mainLight);
+        
+        // Subtle blue rim light from below (reflected nebula light)
+        const rimLight = new THREE.DirectionalLight(0x4488ff, 0.3);
+        rimLight.position.set(-5, -10, -10);
+        scene.add(rimLight);
         
         // Simple lighting
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -216,12 +397,32 @@
             const height = maxY - minY;
             const depth = maxZ - minZ;
             
+            // Create a group for the room visualization
+            roomWireframe = new THREE.Group();
+            
+            // Main wireframe with cyan/teal sci-fi color
             const geometry = new THREE.BoxGeometry(width, height, depth);
             const edges = new THREE.EdgesGeometry(geometry);
-            const material = new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.4 });
-            roomWireframe = new THREE.LineSegments(edges, material);
+            const material = new THREE.LineBasicMaterial({ 
+                color: 0x00ffcc, 
+                transparent: true, 
+                opacity: 0.6 
+            });
+            const mainWireframe = new THREE.LineSegments(edges, material);
+            roomWireframe.add(mainWireframe);
             
-            // Center the wireframe
+            // Add subtle glow layer (slightly larger, more transparent)
+            const glowGeometry = new THREE.BoxGeometry(width + 0.1, height + 0.1, depth + 0.1);
+            const glowEdges = new THREE.EdgesGeometry(glowGeometry);
+            const glowMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x00ffcc, 
+                transparent: true, 
+                opacity: 0.15 
+            });
+            const glowWireframe = new THREE.LineSegments(glowEdges, glowMaterial);
+            roomWireframe.add(glowWireframe);
+            
+            // Center the wireframe group
             roomWireframe.position.set(
                 (minX + maxX) / 2,
                 (minY + maxY) / 2,
@@ -230,9 +431,16 @@
             
             scene.add(roomWireframe);
             
-            // Add floor grid inside the room
-            const floorGrid = new THREE.GridHelper(Math.max(width, depth), 20, 0x444466, 0x333344);
+            // Add floor grid inside the room with space-themed colors
+            const floorGrid = new THREE.GridHelper(
+                Math.max(width, depth), 
+                20, 
+                0x00aa88, // Main lines - teal
+                0x003344  // Secondary lines - dark blue-green
+            );
             floorGrid.position.y = minY;
+            floorGrid.material.transparent = true;
+            floorGrid.material.opacity = 0.3;
             scene.add(floorGrid);
         }
         
