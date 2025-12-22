@@ -168,8 +168,14 @@ private animate = (): void => {
 
 ## Development
 
+**Always run `nvm use` from the project root before any npm commands.**
+
 ```bash
-# Start dev server
+# From workspace root
+nvm use                           # Activate Node 24+
+npm run dev:client                # Start Vite dev server
+
+# Or from client package
 npm run dev -w @block-game/client
 
 # Type check

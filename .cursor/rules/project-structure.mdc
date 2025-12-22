@@ -5,7 +5,21 @@ globs: ["**/*.ts", "**/*.tsx", "**/package.json"]
 
 # Project Structure
 
-This is an **npm workspaces monorepo** with three packages:
+This is an **npm workspaces monorepo** with three packages.
+
+## Node.js Version (nvm)
+
+This project requires **Node.js 24+**. Always use nvm to ensure the correct version:
+
+```bash
+# Before any npm commands, run:
+nvm use
+
+# If you don't have Node 24 installed:
+nvm install 24
+```
+
+The `.nvmrc` file in the project root specifies the required version.
 
 ```
 cam-gesture-experiment/
@@ -28,9 +42,21 @@ graph TD
     Client --> Shared
 ```
 
+## Project Layout
+
+```
+cam-gesture-experiment/
+├── .nvmrc            # Node version specification (24)
+├── packages/
+│   ├── shared/       # @block-game/shared - Types, protocol, constants
+│   ├── server/       # @block-game/server - WebSocket game server
+│   └── client/       # @block-game/client - Vite + TypeScript client
+└── package.json      # Workspace root
+```
+
 ## Key Commands
 
-Run from workspace root:
+Run from workspace root (after `nvm use`):
 
 ```bash
 # Build shared package first (required before other builds)
@@ -86,3 +112,15 @@ When building the full project:
 2. Then `@block-game/server` and `@block-game/client` can build in parallel
 
 The root `validate` script handles this automatically.
+
+## Troubleshooting
+
+If you encounter Node.js errors or missing features:
+
+```bash
+# Verify you're using the correct Node version
+node --version   # Should show v24.x.x
+
+# If not, activate the correct version
+nvm use
+```

@@ -5,6 +5,14 @@ globs: ["**/*.ts"]
 
 # Server Development Standards
 
+## Prerequisites
+
+**Always run `nvm use` before any npm commands.** This project requires Node.js 24+.
+
+```bash
+nvm use   # Activates Node version from .nvmrc
+```
+
 ## TypeScript Strictness
 
 This project uses maximum TypeScript strictness. The following compiler options are enforced:
