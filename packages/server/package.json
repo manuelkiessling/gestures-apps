@@ -11,9 +11,9 @@
     "bot": "tsx src/bot/index.ts",
     "check": "biome check --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "validate": "npm run typecheck && npm run check && npm run test:run"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "validate": "npm run typecheck && npm run check && npm run test"
   },
   "dependencies": {
     "@block-game/shared": "*",

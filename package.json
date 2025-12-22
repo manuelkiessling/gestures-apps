@@ -17,8 +17,9 @@
     "start:server": "npm run start -w @block-game/server",
     "bot": "npm run bot -w @block-game/server",
     "typecheck": "npm run typecheck --workspaces",
+    "check": "npm run check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "validate": "npm run build:shared && npm run typecheck && npm run test"
+    "validate": "npm run build:shared && npm run typecheck && npm run check && npm run test"
   },
   "engines": {
     "node": ">=24.0.0"

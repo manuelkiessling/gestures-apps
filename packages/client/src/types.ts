@@ -107,39 +107,3 @@ export interface GameInitData {
  */
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
-/**
- * Global MediaPipe declarations.
- */
-declare global {
-  interface Window {
-    Hands: new (config: { locateFile: (file: string) => string }) => MediaPipeHands;
-    Camera: new (
-      video: HTMLVideoElement,
-      config: {
-        onFrame: () => Promise<void>;
-        width: number;
-        height: number;
-      }
-    ) => MediaPipeCamera;
-  }
-}
-
-export interface MediaPipeHands {
-  setOptions(options: {
-    maxNumHands: number;
-    modelComplexity: number;
-    minDetectionConfidence: number;
-    minTrackingConfidence: number;
-  }): void;
-  onResults(callback: (results: MediaPipeResults) => void): void;
-  send(config: { image: HTMLVideoElement }): Promise<void>;
-}
-
-export interface MediaPipeCamera {
-  start(): void;
-}
-
-export interface MediaPipeResults {
-  multiHandLandmarks?: HandLandmarks[];
-}
-

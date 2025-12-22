@@ -91,11 +91,11 @@ export function calculatePushVector(movedPos: Position, otherPos: Position): Pos
   // Push along the axis with smallest overlap
   if (overlapX <= overlapY && overlapX <= overlapZ) {
     return { x: dx >= 0 ? overlapX : -overlapX, y: 0, z: 0 };
-  } else if (overlapY <= overlapX && overlapY <= overlapZ) {
-    return { x: 0, y: dy >= 0 ? overlapY : -overlapY, z: 0 };
-  } else {
-    return { x: 0, y: 0, z: dz >= 0 ? overlapZ : -overlapZ };
   }
+  if (overlapY <= overlapX && overlapY <= overlapZ) {
+    return { x: 0, y: dy >= 0 ? overlapY : -overlapY, z: 0 };
+  }
+  return { x: 0, y: 0, z: dz >= 0 ? overlapZ : -overlapZ };
 }
 
 /**

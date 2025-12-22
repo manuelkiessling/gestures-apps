@@ -79,7 +79,7 @@ export function calculateMovementPosition(
   const progress = Math.min(1, elapsed / state.duration);
 
   // Ease-in-out interpolation
-  const eased = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+  const eased = progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
 
   const position: Position = {
     x: state.startPos.x + (state.targetPos.x - state.startPos.x) * eased,

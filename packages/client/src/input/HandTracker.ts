@@ -2,7 +2,9 @@
  * @fileoverview MediaPipe hand tracking initialization and management.
  */
 
-import type { HandLandmarks, MediaPipeHands, MediaPipeCamera } from '../types.js';
+import { Hands } from '@mediapipe/hands';
+import { Camera } from '@mediapipe/camera_utils';
+import type { HandLandmarks } from '../types.js';
 import { MEDIAPIPE } from '../constants.js';
 
 /**
@@ -14,8 +16,8 @@ export type HandLandmarksCallback = (landmarks: HandLandmarks | null) => void;
  * Manages MediaPipe hand tracking.
  */
 export class HandTracker {
-  private hands: MediaPipeHands | null = null;
-  private camera: MediaPipeCamera | null = null;
+  private hands: Hands | null = null;
+  private camera: Camera | null = null;
   private readonly video: HTMLVideoElement;
   private callback: HandLandmarksCallback | null = null;
   private isRunning = false;
@@ -25,32 +27,11 @@ export class HandTracker {
   }
 
   /**
-   * Wait for MediaPipe to load.
-   */
-  private async waitForMediaPipe(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      let attempts = 0;
-      const check = (): void => {
-        if (window.Hands && window.Camera) {
-          resolve();
-        } else if (attempts++ > 50) {
-          reject(new Error('MediaPipe failed to load'));
-        } else {
-          setTimeout(check, 100);
-        }
-      };
-      check();
-    });
-  }
-
-  /**
    * Initialize hand tracking.
    * @param onLandmarks - Callback for landmark updates
    */
   async initialize(onLandmarks: HandLandmarksCallback): Promise<void> {
     this.callback = onLandmarks;
-
-    await this.waitForMediaPipe();
 
     // Get camera stream
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -63,9 +44,9 @@ export class HandTracker {
     this.video.srcObject = stream;
     await this.video.play();
 
-    // Initialize hands
-    this.hands = new window.Hands({
-      locateFile: (file: string) => `${MEDIAPIPE.HANDS_CDN}${file}`,
+    // Initialize hands with local assets
+    this.hands = new Hands({
+      locateFile: (file: string) => `${MEDIAPIPE.HANDS_PATH}${file}`,
     });
 
     this.hands.setOptions({
@@ -89,7 +70,7 @@ export class HandTracker {
     });
 
     // Initialize camera
-    this.camera = new window.Camera(this.video, {
+    this.camera = new Camera(this.video, {
       onFrame: async () => {
         if (this.hands && this.isRunning) {
           await this.hands.send({ image: this.video });

@@ -96,8 +96,8 @@ export const EFFECTS = {
 // ============ MediaPipe Configuration ============
 
 export const MEDIAPIPE = {
-  /** Hands CDN URL */
-  HANDS_CDN: 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/',
+  /** Local path to MediaPipe hands assets (copied by vite-plugin-static-copy) */
+  HANDS_PATH: './mediapipe/hands/',
   /** Maximum number of hands to track */
   MAX_HANDS: 1,
   /** Model complexity (0-2) */
