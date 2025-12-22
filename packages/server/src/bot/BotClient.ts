@@ -8,11 +8,11 @@ import WebSocket from 'ws';
 import { logger } from '../utils/logger.js';
 import { type BehaviorConfig, decideNextAction } from './BotBehavior.js';
 import {
-  type MovementConfig,
-  type MovementState,
   calculateMovementPosition,
   createMovementState,
   generateRandomTarget,
+  type MovementConfig,
+  type MovementState,
 } from './BotMovement.js';
 
 /**

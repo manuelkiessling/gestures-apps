@@ -1,4 +1,4 @@
-import { type Server, createServer } from 'node:http';
+import { createServer, type Server } from 'node:http';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { GameManager } from './game/GameManager.js';
 import { logger } from './utils/logger.js';

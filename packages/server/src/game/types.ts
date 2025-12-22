@@ -15,19 +15,19 @@ import { loadGameConfig } from '../config/gameConfig.js';
 // ============ Re-export Shared Types ============
 
 export type {
-  PlayerId,
-  BlockId,
-  ProjectileId,
-  PlayerNumber,
-  BlockType,
-  Position,
-  Velocity,
   Block,
-  Projectile,
-  Player,
-  RoomBounds,
-  WallGridConfig,
+  BlockId,
+  BlockType,
   DestroyedBlockInfo,
+  Player,
+  PlayerId,
+  PlayerNumber,
+  Position,
+  Projectile,
+  ProjectileId,
+  RoomBounds,
+  Velocity,
+  WallGridConfig,
 } from '@block-game/shared';
 
 // ============ Runtime Configuration ============

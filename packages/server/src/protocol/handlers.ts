@@ -10,8 +10,8 @@ import type { PlayerId, Position } from '../game/types.js';
 import { logger } from '../utils/logger.js';
 import {
   type ClientMessage,
-  type ServerMessage,
   parseClientMessage,
+  type ServerMessage,
   serializeServerMessage,
 } from './messages.js';
 

@@ -21,17 +21,17 @@ import {
   type Block,
   type BlockId,
   CANNON_COLOR,
+  clampToRoom,
   DEFAULT_GAME_CONFIG,
   type DestroyedBlockInfo,
   type GameConfig,
+  getPlayerSpawnZ,
   type Player,
   type PlayerId,
   type PlayerNumber,
   type Position,
   type Projectile,
   type ProjectileId,
-  clampToRoom,
-  getPlayerSpawnZ,
 } from './types.js';
 
 /**

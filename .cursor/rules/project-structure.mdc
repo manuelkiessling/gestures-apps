@@ -7,19 +7,23 @@ globs: ["**/*.ts", "**/*.tsx", "**/package.json"]
 
 This is an **npm workspaces monorepo** with three packages.
 
-## Node.js Version (nvm)
+## Node.js Version
 
-This project requires **Node.js 24+**. Always use nvm to ensure the correct version:
+This project requires **Node.js 24+**. Use your preferred version manager:
 
+**Using mise (recommended):**
 ```bash
-# Before any npm commands, run:
-nvm use
-
-# If you don't have Node 24 installed:
-nvm install 24
+mise install        # Install Node version from .tool-versions
+mise use            # Activate it
 ```
 
-The `.nvmrc` file in the project root specifies the required version.
+**Using nvm:**
+```bash
+nvm install 24      # If not already installed
+nvm use             # Activate from .nvmrc
+```
+
+Both `.nvmrc` and `.tool-versions` files are provided for compatibility.
 
 ```
 cam-gesture-experiment/

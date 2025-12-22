@@ -11,8 +11,8 @@ import { GameState } from './GameState.js';
 import {
   CAMERA_DISTANCE,
   CANNON_AUTO_FIRE_INTERVAL_MS,
-  PROJECTILE_SIZE,
   type PlayerId,
+  PROJECTILE_SIZE,
   TICK_RATE_MS,
   WALL_GRID_CONFIG,
 } from './types.js';

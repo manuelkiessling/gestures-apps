@@ -18,16 +18,16 @@
   "dependencies": {
     "@block-game/shared": "*",
     "ws": "^8.18.0",
-    "yaml": "^2.6.1"
+    "yaml": "^2.7.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/node": "^22.10.2",
-    "@types/ws": "^8.5.13",
-    "tsup": "^8.3.5",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.0"
   },
   "engines": {
     "node": ">=24.0.0"

@@ -8,10 +8,10 @@ import {
   type Block,
   type BlockId,
   CANNON_INDESTRUCTIBLE,
-  PROJECTILE_SIZE,
-  type Position,
-  type RoomBounds,
   clampToRoom,
+  type Position,
+  PROJECTILE_SIZE,
+  type RoomBounds,
 } from './types.js';
 
 /**

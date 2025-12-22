@@ -7,11 +7,11 @@ import {
   type Block,
   type BlockId,
   CANNON_COOLDOWN_MS,
-  PROJECTILE_COLOR,
-  PROJECTILE_SPEED,
   type Player,
   type PlayerId,
   type PlayerNumber,
+  PROJECTILE_COLOR,
+  PROJECTILE_SPEED,
   type Projectile,
 } from './types.js';
 
