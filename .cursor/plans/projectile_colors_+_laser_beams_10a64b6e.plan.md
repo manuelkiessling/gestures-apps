@@ -96,4 +96,3 @@ private createLaserBeam(cannonId: string, position: THREE.Vector3): void {
 - Add `roomBounds` field and `setRoom()` method
 - Modify `createProjectile()` for player-specific colors
 - Add laser beam creation/update/removal logic for cannons
-- Update `updateBlockPosition()` to also update laser beam positions
