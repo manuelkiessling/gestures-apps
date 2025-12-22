@@ -274,6 +274,36 @@ describe('BotAI', () => {
       expect(threats[0]?.threatenedBlock.id).toBe('block-near');
       expect(threats[1]?.threatenedBlock.id).toBe('block-far');
     });
+
+    it('should skip cannons (they are indestructible)', () => {
+      const regularBlock = createBlock({
+        id: 'regular-block',
+        blockType: 'regular',
+        position: { x: 0, y: 0, z: 10 },
+      });
+      const cannonBlock = createBlock({
+        id: 'my-cannon',
+        blockType: 'cannon',
+        position: { x: 0, y: 0, z: 10 },
+      });
+      const projectile = createProjectile({
+        position: { x: 0, y: 0, z: 5 },
+        velocity: { x: 0, y: 0, z: 5 },
+        ownerId: 'player-2',
+      });
+
+      const blocks = new Map([
+        ['regular-block', regularBlock],
+        ['my-cannon', cannonBlock],
+      ]);
+      const projectiles = new Map([['proj-1', projectile]]);
+
+      const threats = detectThreats(blocks, projectiles, 'player-1', 2.0);
+
+      // Should only detect threat to regular block, not cannon
+      expect(threats).toHaveLength(1);
+      expect(threats[0]?.threatenedBlock.id).toBe('regular-block');
+    });
   });
 
   describe('getBlockThreat', () => {

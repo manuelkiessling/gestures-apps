@@ -164,6 +164,7 @@ export function predictCollision(
 
 /**
  * Detect all threats to the bot's blocks from active projectiles.
+ * Only detects threats to regular blocks (cannons are indestructible).
  *
  * @param ownBlocks - Map of the bot's blocks
  * @param projectiles - Map of all active projectiles
@@ -184,6 +185,9 @@ export function detectThreats(
     if (projectile.ownerId === playerId) continue;
 
     for (const block of ownBlocks.values()) {
+      // Skip cannons - they are indestructible and don't need protection
+      if (block.blockType === 'cannon') continue;
+
       const timeToImpact = predictCollision(projectile, block, predictionTime);
 
       if (timeToImpact !== null) {

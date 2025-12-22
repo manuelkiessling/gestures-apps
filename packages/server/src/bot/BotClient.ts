@@ -421,22 +421,22 @@ export class BotClient {
   }
 
   private tick(): void {
-    if (this.state !== 'idle') {
-      // Still busy, reschedule
-      this.scheduleNextAction();
-      return;
-    }
-
     // Use AI or legacy behavior
     if (this.config.useAI) {
       this.tickAI();
     } else {
+      // Legacy mode can't interrupt
+      if (this.state !== 'idle') {
+        this.scheduleNextAction();
+        return;
+      }
       this.tickLegacy();
     }
   }
 
   /**
    * AI-driven tick: uses intelligent decision-making.
+   * Can interrupt offensive actions for defensive evasion.
    */
   private tickAI(): void {
     // Check reaction time
@@ -472,7 +472,25 @@ export class BotClient {
       myCannonId: this.myCannonId,
       opponentBlocks: this.opponentBlocks.size,
       projectiles: this.allProjectiles.size,
+      state: this.state,
     });
+
+    // If currently busy with non-defensive action, check if we need to interrupt for defense
+    if (this.state !== 'idle') {
+      // Only interrupt for defensive evasion of a DIFFERENT block than we're moving
+      if (decision.action.type === 'evade' && decision.action.blockId !== this.grabbedBlockId) {
+        logger.info('Interrupting for defensive evasion', {
+          currentBlock: this.grabbedBlockId,
+          threatBlock: decision.action.blockId,
+        });
+        this.interruptCurrentAction();
+        // Fall through to execute the evasion
+      } else {
+        // Not a defensive interrupt, stay busy
+        this.scheduleNextAction();
+        return;
+      }
+    }
 
     // Execute the action
     switch (decision.action.type) {
@@ -496,6 +514,26 @@ export class BotClient {
         this.scheduleNextAction();
         break;
     }
+  }
+
+  /**
+   * Interrupt the current action to handle a more urgent task.
+   */
+  private interruptCurrentAction(): void {
+    // Stop any ongoing movement
+    if (this.moveTimer) {
+      clearInterval(this.moveTimer);
+      this.moveTimer = null;
+    }
+
+    // Release currently grabbed block if any
+    if (this.grabbedBlockId) {
+      this.send({ type: 'block_release', blockId: this.grabbedBlockId });
+      this.grabbedBlockId = null;
+    }
+
+    this.movementState = null;
+    this.state = 'idle';
   }
 
   /**
