@@ -36,10 +36,11 @@ Before committing, always run:
 npm run validate
 ```
 
-This runs:
-1. `tsc --noEmit` - Type checking
+This runs (in order):
+1. `npm run build:shared` - Build shared package first
 2. `biome check --write .` - Linting and formatting
-3. `vitest run` - All tests
+3. `tsc --noEmit` - Type checking (validates biome changes)
+4. `vitest run` - All tests
 
 ## File Organization
 

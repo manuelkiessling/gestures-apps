@@ -77,11 +77,14 @@ const stars = new THREE.Points(geometry, material);
 When updating buffer attributes, set `needsUpdate`:
 
 ```typescript
-const positions = line.geometry.attributes['position']?.array as Float32Array;
-positions[0] = newX;
-positions[1] = newY;
-positions[2] = newZ;
-line.geometry.attributes['position']!.needsUpdate = true;
+const positionAttr = line.geometry.attributes.position;
+if (positionAttr) {
+  const positions = positionAttr.array as Float32Array;
+  positions[0] = newX;
+  positions[1] = newY;
+  positions[2] = newZ;
+  positionAttr.needsUpdate = true;
+}
 ```
 
 ## Materials
@@ -231,5 +234,7 @@ if (mesh.material instanceof THREE.Material) {
 
 // For array materials
 const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-materials.forEach(mat => mat.dispose());
+for (const mat of materials) {
+  mat.dispose();
+}
 ```

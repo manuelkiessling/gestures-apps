@@ -120,9 +120,10 @@ handleMessage(msg: ServerMessage): void {
     case 'welcome':
       this.playerNumber = msg.playerNumber;
       this.room = msg.room;
-      break;
-    case 'block_state':
       this.syncBlocks(msg.blocks);
+      break;
+    case 'block_moved':
+      this.updateBlockPosition(msg.blockId, msg.position);
       break;
     // ...
   }

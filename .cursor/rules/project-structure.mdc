@@ -27,11 +27,13 @@ Both `.nvmrc` and `.tool-versions` files are provided for compatibility.
 
 ```
 cam-gesture-experiment/
+├── .nvmrc            # Node version (nvm)
+├── .tool-versions    # Node version (mise)
 ├── packages/
-│   ├── shared/     # @block-game/shared - Types, protocol, constants
-│   ├── server/     # @block-game/server - WebSocket game server
-│   └── client/     # @block-game/client - Vite + TypeScript client
-└── package.json    # Workspace root
+│   ├── shared/       # @block-game/shared - Types, protocol, constants
+│   ├── server/       # @block-game/server - WebSocket game server
+│   └── client/       # @block-game/client - Vite + TypeScript client
+└── package.json      # Workspace root
 ```
 
 ## Package Dependencies
@@ -44,18 +46,6 @@ graph TD
     
     Server --> Shared
     Client --> Shared
-```
-
-## Project Layout
-
-```
-cam-gesture-experiment/
-├── .nvmrc            # Node version specification (24)
-├── packages/
-│   ├── shared/       # @block-game/shared - Types, protocol, constants
-│   ├── server/       # @block-game/server - WebSocket game server
-│   └── client/       # @block-game/client - Vite + TypeScript client
-└── package.json      # Workspace root
 ```
 
 ## Key Commands

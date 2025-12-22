@@ -180,17 +180,14 @@ describe('CollisionSystem', () => {
 ## Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (single run, exits when done)
 npm run test -w @block-game/server
-
-# Run tests once (CI mode)
-npm run test:run -w @block-game/server
 
 # Run specific test file
-npx vitest tests/GameState.test.ts
+npx vitest run tests/GameState.test.ts
 
-# Watch mode (default)
-npm run test -w @block-game/server
+# Watch mode (interactive, re-runs on changes)
+npm run test:watch -w @block-game/server
 ```
 
 ## Coverage

@@ -188,9 +188,23 @@ private animate = (): void => {
 };
 ```
 
+## Code Quality
+
+The client uses **Biome** for linting and formatting (same as server):
+
+```bash
+npm run check -w @block-game/client  # Lint and format
+```
+
+Key rules enforced:
+- `noExplicitAny` - Forbidden
+- `noNonNullAssertion` - Forbidden (use proper null checks)
+- `noUnusedImports` - Error
+- `noForEach` - Warning (prefer `for...of`)
+
 ## Development
 
-**Always run `nvm use` from the project root before any npm commands.**
+**Always run `nvm use` (or `mise use`) from the project root before any npm commands.**
 
 ```bash
 # From workspace root
@@ -202,4 +216,7 @@ npm run dev -w @block-game/client
 
 # Type check
 npm run typecheck -w @block-game/client
+
+# Lint and format
+npm run check -w @block-game/client
 ```
