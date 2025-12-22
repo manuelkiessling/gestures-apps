@@ -120,6 +120,7 @@ class Game {
 
     // Configure systems
     this.blockRenderer.setPlayer(data.playerId, data.playerNumber);
+    this.blockRenderer.setRoom(data.room);
     this.gestureDetector.configure(data.room, data.playerNumber);
     this.effectsManager.setRoom(data.room);
     this.effectsManager.setWallGridConfig(data.wallGrid, data.projectileSize);

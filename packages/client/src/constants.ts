@@ -93,6 +93,36 @@ export const EFFECTS = {
   WALL_GRID_COLOR: 0xffaa00,
 } as const;
 
+// ============ Projectile Colors ============
+
+/**
+ * Player-relative projectile colors for visual distinction.
+ */
+export const PROJECTILE_COLORS = {
+  /** Yellow - own projectiles */
+  OWN: 0xffff00,
+  /** Danger red - opponent projectiles */
+  OPPONENT: 0xff4444,
+} as const;
+
+// ============ Laser Beam Constants ============
+
+/**
+ * Cannon laser beam indicator styling.
+ */
+export const LASER_BEAM = {
+  /** Yellow - own cannon beam */
+  COLOR_OWN: 0xffff00,
+  /** Red - opponent cannon beam */
+  COLOR_OPPONENT: 0xff4444,
+  /** Laser beam opacity */
+  OPACITY: 0.35,
+  /** Dash size for dashed line */
+  DASH_SIZE: 0.3,
+  /** Gap size between dashes */
+  GAP_SIZE: 0.15,
+} as const;
+
 // ============ MediaPipe Configuration ============
 
 export const MEDIAPIPE = {

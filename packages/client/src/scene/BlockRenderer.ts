@@ -4,8 +4,13 @@
  */
 
 import * as THREE from 'three';
-import { BLOCK_FLOAT_AMPLITUDE, HIGHLIGHT_COLORS } from '../constants.js';
-import type { Block, BlockEntity, Projectile, ProjectileEntity } from '../types.js';
+import {
+  BLOCK_FLOAT_AMPLITUDE,
+  HIGHLIGHT_COLORS,
+  LASER_BEAM,
+  PROJECTILE_COLORS,
+} from '../constants.js';
+import type { Block, BlockEntity, Projectile, ProjectileEntity, RoomBounds } from '../types.js';
 
 /**
  * Manages block and projectile meshes in the scene.
@@ -30,6 +35,10 @@ export class BlockRenderer {
   private readonly reachableHighlight: THREE.LineSegments;
   private readonly grabbedHighlight: THREE.LineSegments;
   private readonly opponentGrabHighlight: THREE.LineSegments;
+
+  // Laser beams for cannons
+  private readonly laserBeams: Map<string, THREE.Line> = new Map();
+  private roomBounds: RoomBounds | null = null;
 
   private playerId: string | null = null;
   private playerNumber: 1 | 2 | null = null;
@@ -84,6 +93,13 @@ export class BlockRenderer {
   }
 
   /**
+   * Set the room bounds for laser beam calculations.
+   */
+  setRoom(room: RoomBounds): void {
+    this.roomBounds = room;
+  }
+
+  /**
    * Create a block mesh and add it to the scene.
    */
   createBlock(blockData: Block): BlockEntity {
@@ -126,17 +142,107 @@ export class BlockRenderer {
       this.myBlockIds.add(blockData.id);
     }
 
+    // Create laser beam for all cannons (both mine and opponent's)
+    if (isCannon && this.roomBounds && this.playerNumber) {
+      this.createLaserBeam(blockData.id, mesh.position, isMyBlock);
+    }
+
     return entity;
   }
 
   /**
+   * Create a laser beam line from cannon to back wall.
+   * @param cannonId - The cannon block ID
+   * @param position - Current cannon position
+   * @param isMyBlock - Whether this cannon belongs to the local player
+   */
+  private createLaserBeam(cannonId: string, position: THREE.Vector3, isMyBlock: boolean): void {
+    if (!this.roomBounds || !this.playerNumber) return;
+
+    // Remove existing laser beam if any
+    this.removeLaserBeam(cannonId);
+
+    // Determine cannon owner's player number for fire direction
+    // My cannon uses my playerNumber, opponent's cannon uses opposite
+    const ownerPlayerNumber = isMyBlock ? this.playerNumber : (this.playerNumber === 1 ? 2 : 1);
+    // Player 1 fires toward minZ, Player 2 fires toward maxZ
+    const targetZ = ownerPlayerNumber === 1 ? this.roomBounds.minZ : this.roomBounds.maxZ;
+
+    // Create line geometry from cannon to back wall
+    const points = [
+      new THREE.Vector3(position.x, position.y, position.z),
+      new THREE.Vector3(position.x, position.y, targetZ),
+    ];
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+    // Create dashed line material with player-specific color
+    const beamColor = isMyBlock ? LASER_BEAM.COLOR_OWN : LASER_BEAM.COLOR_OPPONENT;
+    const material = new THREE.LineDashedMaterial({
+      color: beamColor,
+      transparent: true,
+      opacity: LASER_BEAM.OPACITY,
+      dashSize: LASER_BEAM.DASH_SIZE,
+      gapSize: LASER_BEAM.GAP_SIZE,
+    });
+
+    const line = new THREE.Line(geometry, material);
+    line.computeLineDistances(); // Required for dashed lines
+
+    this.scene.add(line);
+    this.laserBeams.set(cannonId, line);
+  }
+
+  /**
+   * Update laser beam position when cannon moves.
+   */
+  private updateLaserBeam(cannonId: string, position: THREE.Vector3): void {
+    const line = this.laserBeams.get(cannonId);
+    if (!line || !this.roomBounds || !this.playerNumber) return;
+
+    // Determine cannon owner's player number for fire direction
+    const entity = this._blocks.get(cannonId);
+    const isMyBlock = entity ? entity.data.ownerId === this.playerId : true;
+    const ownerPlayerNumber = isMyBlock ? this.playerNumber : (this.playerNumber === 1 ? 2 : 1);
+    const targetZ = ownerPlayerNumber === 1 ? this.roomBounds.minZ : this.roomBounds.maxZ;
+
+    // Update geometry positions
+    const positions = line.geometry.attributes.position as THREE.BufferAttribute;
+    positions.setXYZ(0, position.x, position.y, position.z);
+    positions.setXYZ(1, position.x, position.y, targetZ);
+    positions.needsUpdate = true;
+
+    // Recompute line distances for dashed effect
+    line.computeLineDistances();
+  }
+
+  /**
+   * Remove a laser beam.
+   */
+  private removeLaserBeam(cannonId: string): void {
+    const line = this.laserBeams.get(cannonId);
+    if (line) {
+      this.scene.remove(line);
+      line.geometry.dispose();
+      if (line.material instanceof THREE.Material) {
+        line.material.dispose();
+      }
+      this.laserBeams.delete(cannonId);
+    }
+  }
+
+  /**
    * Create a projectile mesh and add it to the scene.
+   * Uses player-specific colors: yellow for own, red for opponent.
    */
   createProjectile(projectileData: Projectile, projectileSize: number = 0.3): ProjectileEntity {
+    // Use player-relative colors for visual distinction
+    const isMyProjectile = projectileData.ownerId === this.playerId;
+    const color = isMyProjectile ? PROJECTILE_COLORS.OWN : PROJECTILE_COLORS.OPPONENT;
+
     const geometry = new THREE.SphereGeometry(projectileSize, 16, 16);
     const material = new THREE.MeshStandardMaterial({
-      color: projectileData.color,
-      emissive: projectileData.color,
+      color,
+      emissive: color,
       emissiveIntensity: 0.6,
     });
 
@@ -166,6 +272,11 @@ export class BlockRenderer {
     if (entity) {
       entity.mesh.position.set(position.x, position.y, position.z);
       entity.baseY = position.y;
+
+      // Update laser beam if this is a cannon
+      if (entity.data.blockType === 'cannon' && this.laserBeams.has(blockId)) {
+        this.updateLaserBeam(blockId, entity.mesh.position);
+      }
     }
   }
 
@@ -195,6 +306,9 @@ export class BlockRenderer {
       }
       this._blocks.delete(blockId);
       this.myBlockIds.delete(blockId);
+
+      // Remove laser beam if this was a cannon
+      this.removeLaserBeam(blockId);
     }
   }
 
@@ -272,10 +386,17 @@ export class BlockRenderer {
    */
   updateAnimations(elapsedTime: number, grabbedBlockId: string | null): void {
     for (const [id, entity] of this._blocks) {
-      if (id !== grabbedBlockId && !entity.isGrabbed) {
-        // Gentle floating animation
+      const isGrabbed = id === grabbedBlockId || entity.isGrabbed;
+
+      if (!isGrabbed) {
+        // Gentle floating animation for non-grabbed blocks
         entity.mesh.position.y =
           entity.baseY + Math.sin(elapsedTime + entity.phase) * BLOCK_FLOAT_AMPLITUDE;
+      }
+
+      // Update laser beam position for all cannons (grabbed or floating)
+      if (entity.data.blockType === 'cannon' && this.laserBeams.has(id)) {
+        this.updateLaserBeam(id, entity.mesh.position);
       }
     }
 
@@ -370,9 +491,14 @@ export class BlockRenderer {
     for (const projId of [...this._projectiles.keys()]) {
       this.removeProjectile(projId);
     }
+    // Clear any remaining laser beams
+    for (const cannonId of [...this.laserBeams.keys()]) {
+      this.removeLaserBeam(cannonId);
+    }
     this.myBlockIds.clear();
     this.playerId = null;
     this.playerNumber = null;
+    this.roomBounds = null;
   }
 
   /**
