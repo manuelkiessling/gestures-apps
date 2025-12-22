@@ -67,6 +67,14 @@ export const ANIMATION = {
   GRAB_LERP: 0.25,
 } as const;
 
+// ============ Grab Interaction Constants ============
+
+/**
+ * Grace period before releasing a grabbed block (ms).
+ * Prevents accidental drops from momentary tracking lapses.
+ */
+export const GRAB_RELEASE_GRACE_MS = 150;
+
 // ============ Starfield Constants ============
 
 export const STARFIELD = {

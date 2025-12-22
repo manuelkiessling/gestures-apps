@@ -164,7 +164,7 @@ export class BlockRenderer {
 
     // Determine cannon owner's player number for fire direction
     // My cannon uses my playerNumber, opponent's cannon uses opposite
-    const ownerPlayerNumber = isMyBlock ? this.playerNumber : (this.playerNumber === 1 ? 2 : 1);
+    const ownerPlayerNumber = isMyBlock ? this.playerNumber : this.playerNumber === 1 ? 2 : 1;
     // Player 1 fires toward minZ, Player 2 fires toward maxZ
     const targetZ = ownerPlayerNumber === 1 ? this.roomBounds.minZ : this.roomBounds.maxZ;
 
@@ -202,7 +202,7 @@ export class BlockRenderer {
     // Determine cannon owner's player number for fire direction
     const entity = this._blocks.get(cannonId);
     const isMyBlock = entity ? entity.data.ownerId === this.playerId : true;
-    const ownerPlayerNumber = isMyBlock ? this.playerNumber : (this.playerNumber === 1 ? 2 : 1);
+    const ownerPlayerNumber = isMyBlock ? this.playerNumber : this.playerNumber === 1 ? 2 : 1;
     const targetZ = ownerPlayerNumber === 1 ? this.roomBounds.minZ : this.roomBounds.maxZ;
 
     // Update geometry positions

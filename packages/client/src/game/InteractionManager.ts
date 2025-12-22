@@ -3,7 +3,12 @@
  */
 
 import type * as THREE from 'three';
-import { ANIMATION, BLOCK_REACH_DISTANCE, POSITION_SEND_THROTTLE_MS } from '../constants.js';
+import {
+  ANIMATION,
+  BLOCK_REACH_DISTANCE,
+  GRAB_RELEASE_GRACE_MS,
+  POSITION_SEND_THROTTLE_MS,
+} from '../constants.js';
 import type { GameClient } from '../network/GameClient.js';
 import type { BlockRenderer } from '../scene/BlockRenderer.js';
 import type { BlockEntity } from '../types.js';
@@ -19,6 +24,9 @@ export class InteractionManager {
   private reachableBlock: BlockEntity | null = null;
   private lastSendTime = 0;
 
+  /** Timestamp when release grace period started, or null if not in grace period */
+  private releaseGraceStart: number | null = null;
+
   constructor(blockRenderer: BlockRenderer, gameClient: GameClient) {
     this.blockRenderer = blockRenderer;
     this.gameClient = gameClient;
@@ -31,8 +39,9 @@ export class InteractionManager {
    * @returns Status text describing the current interaction state
    */
   processInteraction(pinchPoint: THREE.Vector3 | null, isPinching: boolean): string {
-    // No hand detected
+    // No hand detected - release immediately (no grace period without hand tracking)
     if (!pinchPoint) {
+      this.releaseGraceStart = null;
       if (this.grabbedBlock) {
         this.releaseCurrentBlock();
       }
@@ -40,12 +49,18 @@ export class InteractionManager {
       return 'No hand detected';
     }
 
-    // Update reachable block highlight when not grabbing
-    if (!this.grabbedBlock) {
+    // Check if we're in grace period (holding block but pinch detection failed)
+    const isInGracePeriod = this.grabbedBlock && this.releaseGraceStart !== null;
+
+    // Update reachable block highlight only when not grabbing AND not in grace period
+    if (!this.grabbedBlock && !isInGracePeriod) {
       this.updateHighlight(pinchPoint);
     }
 
     if (isPinching) {
+      // Cancel any pending release - pinch resumed
+      this.releaseGraceStart = null;
+
       // Try to grab if not already grabbing
       if (!this.grabbedBlock && this.reachableBlock) {
         this.grabBlock(this.reachableBlock);
@@ -58,14 +73,31 @@ export class InteractionManager {
       }
 
       return this.reachableBlock ? 'Pinching' : 'Pinching (no block)';
-    } else {
-      // Release if was grabbing
-      if (this.grabbedBlock) {
-        this.releaseCurrentBlock();
+    }
+
+    // Not pinching - handle release with grace period
+    if (this.grabbedBlock) {
+      const now = Date.now();
+
+      if (this.releaseGraceStart === null) {
+        // Start grace period
+        this.releaseGraceStart = now;
       }
 
-      return this.reachableBlock ? 'In reach' : 'Open';
+      // Check if grace period has expired
+      if (now - this.releaseGraceStart > GRAB_RELEASE_GRACE_MS) {
+        // Grace period expired - actually release
+        this.releaseCurrentBlock();
+        this.releaseGraceStart = null;
+        return this.reachableBlock ? 'In reach' : 'Open';
+      }
+
+      // Still in grace period - keep block grabbed and continue moving
+      this.moveGrabbedBlock(pinchPoint);
+      return 'Grabbing';
     }
+
+    return this.reachableBlock ? 'In reach' : 'Open';
   }
 
   /**
@@ -88,6 +120,7 @@ export class InteractionManager {
   clear(): void {
     this.grabbedBlock = null;
     this.reachableBlock = null;
+    this.releaseGraceStart = null;
     this.blockRenderer.hideReachableHighlight();
     this.blockRenderer.hideGrabbedHighlight();
   }
