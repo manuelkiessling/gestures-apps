@@ -1,5 +1,5 @@
 /**
- * @fileoverview Volumetric 3D hand visualization with translucent surfaces.
+ * @fileoverview Volumetric 3D hand visualization with translucent finger tubes.
  */
 
 import * as THREE from 'three';
@@ -14,29 +14,14 @@ const FINGER_PATHS = [
   [0, 17, 18, 19, 20], // Pinky
 ];
 
-/** Palm triangles for the filled palm mesh */
-const PALM_TRIANGLES: Array<[number, number, number]> = [
-  // Central palm
-  [0, 5, 9],
-  [0, 9, 13],
-  [0, 13, 17],
-  // Finger base connections
-  [5, 6, 9],
-  [9, 6, 10],
-  [9, 10, 13],
-  [13, 10, 14],
-  [13, 14, 17],
-  [17, 14, 18],
-];
-
 /** Fingertip landmark indices */
 const FINGERTIPS = [4, 8, 12, 16, 20];
 
-/** Width profile for finger segments (wider at base, narrower at tip) */
-const FINGER_WIDTH = [0.18, 0.14, 0.11, 0.09, 0.07];
+/** Width profile for finger segments (wider at base, narrower at tip) - doubled */
+const FINGER_WIDTH = [0.36, 0.28, 0.22, 0.18, 0.14];
 
 /**
- * Renders a volumetric hand with translucent curved surfaces.
+ * Renders a volumetric hand with translucent finger tubes.
  */
 export class HandVisualizer {
   private readonly scene: THREE.Scene;
@@ -44,15 +29,11 @@ export class HandVisualizer {
   // Finger tube meshes (one per finger)
   private readonly fingerMeshes: THREE.Mesh[] = [];
 
-  // Palm surface mesh
-  private readonly palmMesh: THREE.Mesh;
-
   // Fingertip spheres for soft ends
   private readonly fingertipMeshes: THREE.Mesh[] = [];
 
   // Shared materials
   private readonly fingerMaterial: THREE.MeshStandardMaterial;
-  private readonly palmMaterial: THREE.MeshStandardMaterial;
   private readonly tipMaterial: THREE.MeshStandardMaterial;
 
   constructor(scene: THREE.Scene) {
@@ -66,19 +47,6 @@ export class HandVisualizer {
       transparent: true,
       opacity: 0.6,
       roughness: 0.4,
-      metalness: 0.0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-
-    // Create palm material (slightly more transparent)
-    this.palmMaterial = new THREE.MeshStandardMaterial({
-      color: HAND_COLORS.NORMAL,
-      emissive: HAND_COLORS.NORMAL,
-      emissiveIntensity: 0.2,
-      transparent: true,
-      opacity: 0.4,
-      roughness: 0.5,
       metalness: 0.0,
       side: THREE.DoubleSide,
       depthWrite: false,
@@ -106,16 +74,9 @@ export class HandVisualizer {
       this.fingerMeshes.push(mesh);
     }
 
-    // Create palm mesh
-    const palmGeometry = new THREE.BufferGeometry();
-    this.palmMesh = new THREE.Mesh(palmGeometry, this.palmMaterial);
-    this.palmMesh.visible = false;
-    this.palmMesh.renderOrder = 0;
-    this.scene.add(this.palmMesh);
-
-    // Create fingertip meshes
+    // Create fingertip meshes (doubled size)
     for (let i = 0; i < FINGERTIPS.length; i++) {
-      const geometry = new THREE.SphereGeometry(FINGER_WIDTH[4] ?? 0.07, 12, 12);
+      const geometry = new THREE.SphereGeometry(FINGER_WIDTH[4] ?? 0.14, 12, 12);
       const mesh = new THREE.Mesh(geometry, this.tipMaterial.clone());
       mesh.visible = false;
       mesh.renderOrder = 2;
@@ -152,9 +113,6 @@ export class HandVisualizer {
         mesh.visible = false;
       }
     }
-
-    // Update palm mesh
-    this.updatePalmMesh(positions);
 
     // Update fingertip meshes
     for (let i = 0; i < FINGERTIPS.length; i++) {
@@ -198,8 +156,8 @@ export class HandVisualizer {
       );
       const nextIndex = Math.min(widthIndex + 1, FINGER_WIDTH.length - 1);
       const localT = (t * (FINGER_WIDTH.length - 1)) % 1;
-      const w1 = FINGER_WIDTH[widthIndex] ?? 0.1;
-      const w2 = FINGER_WIDTH[nextIndex] ?? 0.1;
+      const w1 = FINGER_WIDTH[widthIndex] ?? 0.2;
+      const w2 = FINGER_WIDTH[nextIndex] ?? 0.2;
       const radius = w1 + (w2 - w1) * localT;
 
       // Thumb is slightly thicker
@@ -285,62 +243,12 @@ export class HandVisualizer {
   }
 
   /**
-   * Update the palm mesh surface.
-   */
-  private updatePalmMesh(positions: THREE.Vector3[]): void {
-    const verts: number[] = [];
-    const norms: number[] = [];
-    const indices: number[] = [];
-
-    let vertexIndex = 0;
-
-    for (const tri of PALM_TRIANGLES) {
-      const p0 = positions[tri[0]];
-      const p1 = positions[tri[1]];
-      const p2 = positions[tri[2]];
-
-      if (!p0 || !p1 || !p2) continue;
-
-      // Calculate face normal
-      const edge1 = new THREE.Vector3().subVectors(p1, p0);
-      const edge2 = new THREE.Vector3().subVectors(p2, p0);
-      const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
-
-      // Add vertices (both sides by using double-sided material)
-      verts.push(p0.x, p0.y, p0.z);
-      verts.push(p1.x, p1.y, p1.z);
-      verts.push(p2.x, p2.y, p2.z);
-
-      norms.push(normal.x, normal.y, normal.z);
-      norms.push(normal.x, normal.y, normal.z);
-      norms.push(normal.x, normal.y, normal.z);
-
-      indices.push(vertexIndex, vertexIndex + 1, vertexIndex + 2);
-      vertexIndex += 3;
-    }
-
-    if (verts.length > 0) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-      geometry.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-      geometry.setIndex(indices);
-
-      this.palmMesh.geometry.dispose();
-      this.palmMesh.geometry = geometry;
-      this.palmMesh.visible = true;
-    } else {
-      this.palmMesh.visible = false;
-    }
-  }
-
-  /**
    * Hide all hand visualization elements.
    */
   hide(): void {
     for (const mesh of this.fingerMeshes) {
       mesh.visible = false;
     }
-    this.palmMesh.visible = false;
     for (const mesh of this.fingertipMeshes) {
       mesh.visible = false;
     }
@@ -355,10 +263,6 @@ export class HandVisualizer {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();
     }
-
-    this.scene.remove(this.palmMesh);
-    this.palmMesh.geometry.dispose();
-    this.palmMaterial.dispose();
 
     for (const mesh of this.fingertipMeshes) {
       this.scene.remove(mesh);
