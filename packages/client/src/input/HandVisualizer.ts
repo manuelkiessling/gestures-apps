@@ -14,8 +14,11 @@ const FINGER_PATHS = [
   [17, 18, 19, 20], // Pinky
 ];
 
-/** Fingertip landmark indices */
-const FINGERTIPS = [4, 8, 12, 16, 20];
+/** Fingertip landmark indices for primary fingers (thumb, index) that show spheres */
+const PRIMARY_FINGERTIPS = [4, 8];
+
+/** Opacity multiplier for secondary fingers (middle, ring, pinky) */
+const SECONDARY_FINGER_OPACITY = 0.5;
 
 /** Width profile for finger segments (wider at base, narrower at tip) */
 const FINGER_WIDTH = [0.32, 0.26, 0.2, 0.14];
@@ -102,13 +105,17 @@ export class HandVisualizer {
     // Create finger tube meshes with custom shader material
     const handColor = new THREE.Color(HAND_COLORS.NORMAL);
     for (let i = 0; i < FINGER_PATHS.length; i++) {
+      // Secondary fingers (middle, ring, pinky) are less opaque
+      const isSecondary = i >= 2;
+      const opacityMultiplier = isSecondary ? SECONDARY_FINGER_OPACITY : 1.0;
+
       const geometry = new THREE.BufferGeometry();
       const material = new THREE.ShaderMaterial({
         uniforms: {
           color: { value: handColor },
           emissive: { value: handColor },
           emissiveIntensity: { value: 0.25 },
-          baseOpacity: { value: HAND_VISUAL.FINGER_OPACITY },
+          baseOpacity: { value: HAND_VISUAL.FINGER_OPACITY * opacityMultiplier },
         },
         vertexShader: fingerVertexShader,
         fragmentShader: fingerFragmentShader,
@@ -123,8 +130,8 @@ export class HandVisualizer {
       this.fingerMeshes.push(mesh);
     }
 
-    // Create fingertip meshes
-    for (let i = 0; i < FINGERTIPS.length; i++) {
+    // Create fingertip meshes only for primary fingers (thumb and index)
+    for (let i = 0; i < PRIMARY_FINGERTIPS.length; i++) {
       const geometry = new THREE.SphereGeometry(FINGER_WIDTH[3] ?? 0.14, 12, 12);
       const mesh = new THREE.Mesh(geometry, this.tipMaterial.clone());
       mesh.visible = false;
@@ -167,9 +174,9 @@ export class HandVisualizer {
       }
     }
 
-    // Update fingertip meshes
-    for (let i = 0; i < FINGERTIPS.length; i++) {
-      const tipIdx = FINGERTIPS[i];
+    // Update fingertip meshes (only for thumb and index)
+    for (let i = 0; i < PRIMARY_FINGERTIPS.length; i++) {
+      const tipIdx = PRIMARY_FINGERTIPS[i];
       const mesh = this.fingertipMeshes[i];
       const pos = tipIdx !== undefined ? renderPositions[tipIdx] : undefined;
 
