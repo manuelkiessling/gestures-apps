@@ -13,7 +13,7 @@ const TEST_ROOM: RoomBounds = {
 };
 
 // CAMERA_MARGIN from shared constants
-const CAMERA_MARGIN = 0.05;
+const CAMERA_MARGIN = 0.2;
 
 /**
  * Create hand landmarks at a specific normalized position.

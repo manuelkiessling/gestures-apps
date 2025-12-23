@@ -50,8 +50,12 @@ export const HIGHLIGHT_COLORS = {
 
 /**
  * Camera boundary margin (0-1 normalized space).
+ * This defines the "safe zone" for hand tracking. A larger margin means
+ * a smaller tracking area, but more reliable tracking at the edges.
+ * The hand can still move outside this area (for visualization), but
+ * interactions are clamped to the room bounds mapped from this zone.
  */
-export const CAMERA_MARGIN = 0.05;
+export const CAMERA_MARGIN = 0.2;
 
 /**
  * Distance threshold for pinch detection (normalized).
