@@ -21,6 +21,12 @@ const FINGERTIPS = [4, 8, 12, 16, 20];
 const FINGER_WIDTH = [0.36, 0.28, 0.22, 0.18, 0.14];
 
 /**
+ * Smoothing factor for hand movement (0-1).
+ * Lower = smoother but more lag, higher = more responsive but shakier.
+ */
+const SMOOTHING_FACTOR = 0.3;
+
+/**
  * Renders a volumetric hand with translucent finger tubes.
  */
 export class HandVisualizer {
@@ -35,6 +41,9 @@ export class HandVisualizer {
   // Shared materials
   private readonly fingerMaterial: THREE.MeshStandardMaterial;
   private readonly tipMaterial: THREE.MeshStandardMaterial;
+
+  // Smoothed positions for rendering (reduces shakiness)
+  private smoothedPositions: THREE.Vector3[] | null = null;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -91,8 +100,12 @@ export class HandVisualizer {
   update(positions: THREE.Vector3[] | null): void {
     if (!positions || positions.length < HAND_LANDMARKS.COUNT) {
       this.hide();
+      this.smoothedPositions = null;
       return;
     }
+
+    // Apply temporal smoothing to reduce shakiness
+    const renderPositions = this.applySmoothing(positions);
 
     // Update finger tubes
     for (let i = 0; i < FINGER_PATHS.length; i++) {
@@ -102,7 +115,7 @@ export class HandVisualizer {
 
       const points: THREE.Vector3[] = [];
       for (const idx of path) {
-        const pos = positions[idx];
+        const pos = renderPositions[idx];
         if (pos) points.push(pos.clone());
       }
 
@@ -118,7 +131,7 @@ export class HandVisualizer {
     for (let i = 0; i < FINGERTIPS.length; i++) {
       const tipIdx = FINGERTIPS[i];
       const mesh = this.fingertipMeshes[i];
-      const pos = tipIdx !== undefined ? positions[tipIdx] : undefined;
+      const pos = tipIdx !== undefined ? renderPositions[tipIdx] : undefined;
 
       if (mesh && pos) {
         mesh.position.copy(pos);
@@ -127,6 +140,32 @@ export class HandVisualizer {
         mesh.visible = false;
       }
     }
+  }
+
+  /**
+   * Apply temporal smoothing to positions for smoother rendering.
+   * Uses exponential moving average (lerp) between previous and current positions.
+   */
+  private applySmoothing(positions: THREE.Vector3[]): THREE.Vector3[] {
+    // Initialize smoothed positions on first frame
+    if (!this.smoothedPositions) {
+      this.smoothedPositions = positions.map((p) => p.clone());
+      return this.smoothedPositions;
+    }
+
+    // Lerp each position toward the target
+    for (let i = 0; i < positions.length; i++) {
+      const target = positions[i];
+      const smoothed = this.smoothedPositions[i];
+
+      if (target && smoothed) {
+        smoothed.lerp(target, SMOOTHING_FACTOR);
+      } else if (target && !smoothed) {
+        this.smoothedPositions[i] = target.clone();
+      }
+    }
+
+    return this.smoothedPositions;
   }
 
   /**
