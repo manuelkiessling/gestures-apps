@@ -6,11 +6,89 @@
 import * as THREE from 'three';
 import {
   BLOCK_FLOAT_AMPLITUDE,
+  CANNON_VISUAL,
   HIGHLIGHT_COLORS,
   LASER_BEAM,
   PROJECTILE_COLORS,
 } from '../constants.js';
 import type { Block, BlockEntity, Projectile, ProjectileEntity, RoomBounds } from '../types.js';
+
+/**
+ * Create a distinctive cannon mesh with octagonal barrel and muzzle.
+ * @param color - The cannon color
+ * @param isMyBlock - Whether this cannon belongs to the local player
+ * @returns A group containing the cannon mesh components
+ */
+function createCannonMesh(color: number, isMyBlock: boolean): THREE.Group {
+  const group = new THREE.Group();
+
+  // Main barrel - octagonal cylinder
+  const barrelGeometry = new THREE.CylinderGeometry(0.35, 0.4, 1.2, 8);
+  barrelGeometry.rotateX(Math.PI / 2); // Point forward along Z
+
+  const barrelMaterial = new THREE.MeshStandardMaterial({
+    color,
+    transparent: true,
+    opacity: isMyBlock ? 0.95 : 0.6,
+    emissive: color,
+    emissiveIntensity: CANNON_VISUAL.EMISSIVE_INTENSITY,
+    metalness: 0.7,
+    roughness: 0.3,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
+  });
+
+  const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+  barrel.position.z = 0.1; // Slight offset forward
+  group.add(barrel);
+
+  // Muzzle ring at the front
+  const muzzleGeometry = new THREE.TorusGeometry(0.38, 0.08, 8, 8);
+  muzzleGeometry.rotateX(Math.PI / 2);
+
+  const muzzleMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: color,
+    emissiveIntensity: CANNON_VISUAL.MUZZLE_GLOW,
+    metalness: 0.9,
+    roughness: 0.1,
+  });
+
+  const muzzle = new THREE.Mesh(muzzleGeometry, muzzleMaterial);
+  muzzle.position.z = -0.5; // At the front of barrel
+  group.add(muzzle);
+
+  // Inner glow core (visible from muzzle)
+  const coreGeometry = new THREE.CircleGeometry(0.25, 16);
+  const coreMaterial = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide,
+  });
+  const core = new THREE.Mesh(coreGeometry, coreMaterial);
+  core.position.z = -0.52;
+  group.add(core);
+
+  // Back cap with accent ring
+  const backCapGeometry = new THREE.CylinderGeometry(0.42, 0.35, 0.15, 8);
+  backCapGeometry.rotateX(Math.PI / 2);
+
+  const backCapMaterial = new THREE.MeshStandardMaterial({
+    color: 0x333333,
+    emissive: color,
+    emissiveIntensity: 0.15,
+    metalness: 0.8,
+    roughness: 0.2,
+  });
+
+  const backCap = new THREE.Mesh(backCapGeometry, backCapMaterial);
+  backCap.position.z = 0.65;
+  group.add(backCap);
+
+  return group;
+}
 
 /**
  * Manages block and projectile meshes in the scene.
@@ -36,8 +114,8 @@ export class BlockRenderer {
   private readonly grabbedHighlight: THREE.LineSegments;
   private readonly opponentGrabHighlight: THREE.LineSegments;
 
-  // Laser beams for cannons
-  private readonly laserBeams: Map<string, THREE.Line> = new Map();
+  // Laser beams for cannons (group containing beam line and crosshair)
+  private readonly laserBeams: Map<string, THREE.Group> = new Map();
   private roomBounds: RoomBounds | null = null;
 
   private playerId: string | null = null;
@@ -106,25 +184,28 @@ export class BlockRenderer {
     const isMyBlock = blockData.ownerId === this.playerId;
     const isCannon = blockData.blockType === 'cannon';
 
-    // Cannon has distinct shape
-    // Regular blocks are slightly smaller than 1.0 to prevent z-fighting when adjacent
-    const geometry = isCannon
-      ? new THREE.BoxGeometry(0.8, 0.8, 1.5)
-      : new THREE.BoxGeometry(0.96, 0.96, 0.96);
+    let mesh: THREE.Mesh | THREE.Group;
 
-    const material = new THREE.MeshStandardMaterial({
-      color: blockData.color,
-      transparent: true,
-      opacity: isMyBlock ? 0.9 : 0.5,
-      emissive: isCannon ? blockData.color : 0x000000,
-      emissiveIntensity: isCannon ? 0.3 : 0,
-      // Prevent z-fighting when blocks are adjacent
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1,
-    });
+    if (isCannon) {
+      // Create distinctive cannon with octagonal barrel
+      mesh = createCannonMesh(blockData.color, isMyBlock);
+    } else {
+      // Regular blocks are slightly smaller than 1.0 to prevent z-fighting when adjacent
+      const geometry = new THREE.BoxGeometry(0.96, 0.96, 0.96);
+      const material = new THREE.MeshStandardMaterial({
+        color: blockData.color,
+        transparent: true,
+        opacity: isMyBlock ? 0.9 : 0.5,
+        emissive: 0x000000,
+        emissiveIntensity: 0,
+        // Prevent z-fighting when blocks are adjacent
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1,
+      });
+      mesh = new THREE.Mesh(geometry, material);
+    }
 
-    const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(blockData.position.x, blockData.position.y, blockData.position.z);
 
     // Orient cannon to point towards enemy
@@ -156,7 +237,87 @@ export class BlockRenderer {
   }
 
   /**
-   * Create a laser beam line from cannon to back wall.
+   * Create a crosshair mesh for the beam endpoint.
+   */
+  private createCrosshair(color: number): THREE.Group {
+    const crosshairGroup = new THREE.Group();
+    const size = LASER_BEAM.CROSSHAIR_SIZE;
+    const innerSize = LASER_BEAM.CROSSHAIR_INNER_SIZE;
+
+    // Outer ring
+    const outerRingGeometry = new THREE.RingGeometry(size * 0.8, size, 32);
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: LASER_BEAM.OPACITY,
+      side: THREE.DoubleSide,
+    });
+    const outerRing = new THREE.Mesh(outerRingGeometry, ringMaterial);
+    crosshairGroup.add(outerRing);
+
+    // Inner dot
+    const dotGeometry = new THREE.CircleGeometry(innerSize, 16);
+    const dotMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: LASER_BEAM.OPACITY + 0.2,
+      side: THREE.DoubleSide,
+    });
+    const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+    crosshairGroup.add(dot);
+
+    // Cross lines
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: LASER_BEAM.OPACITY + 0.1,
+    });
+
+    // Horizontal line
+    const hPoints = [
+      new THREE.Vector3(-size * 1.2, 0, 0),
+      new THREE.Vector3(-size * 0.4, 0, 0),
+    ];
+    const hPoints2 = [
+      new THREE.Vector3(size * 0.4, 0, 0),
+      new THREE.Vector3(size * 1.2, 0, 0),
+    ];
+    const hLine1 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(hPoints),
+      lineMaterial
+    );
+    const hLine2 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(hPoints2),
+      lineMaterial.clone()
+    );
+    crosshairGroup.add(hLine1);
+    crosshairGroup.add(hLine2);
+
+    // Vertical line
+    const vPoints = [
+      new THREE.Vector3(0, -size * 1.2, 0),
+      new THREE.Vector3(0, -size * 0.4, 0),
+    ];
+    const vPoints2 = [
+      new THREE.Vector3(0, size * 0.4, 0),
+      new THREE.Vector3(0, size * 1.2, 0),
+    ];
+    const vLine1 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(vPoints),
+      lineMaterial.clone()
+    );
+    const vLine2 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(vPoints2),
+      lineMaterial.clone()
+    );
+    crosshairGroup.add(vLine1);
+    crosshairGroup.add(vLine2);
+
+    return crosshairGroup;
+  }
+
+  /**
+   * Create a laser beam with crosshair from cannon to back wall.
    * @param cannonId - The cannon block ID
    * @param position - Current cannon position
    * @param isMyBlock - Whether this cannon belongs to the local player
@@ -168,41 +329,56 @@ export class BlockRenderer {
     this.removeLaserBeam(cannonId);
 
     // Determine cannon owner's player number for fire direction
-    // My cannon uses my playerNumber, opponent's cannon uses opposite
     const ownerPlayerNumber = isMyBlock ? this.playerNumber : this.playerNumber === 1 ? 2 : 1;
     // Player 1 fires toward minZ, Player 2 fires toward maxZ
     const targetZ = ownerPlayerNumber === 1 ? this.roomBounds.minZ : this.roomBounds.maxZ;
 
-    // Create line geometry from cannon to back wall
-    const points = [
+    const beamGroup = new THREE.Group();
+    const beamColor = isMyBlock ? LASER_BEAM.COLOR_OWN : LASER_BEAM.COLOR_OPPONENT;
+
+    // Main beam line - solid and more visible
+    const beamPoints = [
       new THREE.Vector3(position.x, position.y, position.z),
       new THREE.Vector3(position.x, position.y, targetZ),
     ];
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-
-    // Create dashed line material with player-specific color
-    const beamColor = isMyBlock ? LASER_BEAM.COLOR_OWN : LASER_BEAM.COLOR_OPPONENT;
-    const material = new THREE.LineDashedMaterial({
+    const beamGeometry = new THREE.BufferGeometry().setFromPoints(beamPoints);
+    const beamMaterial = new THREE.LineBasicMaterial({
       color: beamColor,
       transparent: true,
       opacity: LASER_BEAM.OPACITY,
-      dashSize: LASER_BEAM.DASH_SIZE,
-      gapSize: LASER_BEAM.GAP_SIZE,
+      linewidth: LASER_BEAM.LINE_WIDTH,
     });
+    const beamLine = new THREE.Line(beamGeometry, beamMaterial);
+    beamLine.name = 'beamLine';
+    beamGroup.add(beamLine);
 
-    const line = new THREE.Line(geometry, material);
-    line.computeLineDistances(); // Required for dashed lines
+    // Glow beam (slightly wider, more transparent)
+    const glowMaterial = new THREE.LineBasicMaterial({
+      color: beamColor,
+      transparent: true,
+      opacity: LASER_BEAM.OPACITY * 0.4,
+      linewidth: LASER_BEAM.LINE_WIDTH + 2,
+    });
+    const glowLine = new THREE.Line(beamGeometry.clone(), glowMaterial);
+    glowLine.name = 'glowLine';
+    beamGroup.add(glowLine);
 
-    this.scene.add(line);
-    this.laserBeams.set(cannonId, line);
+    // Crosshair at the endpoint
+    const crosshair = this.createCrosshair(beamColor);
+    crosshair.name = 'crosshair';
+    crosshair.position.set(position.x, position.y, targetZ + (ownerPlayerNumber === 1 ? 0.02 : -0.02));
+    beamGroup.add(crosshair);
+
+    this.scene.add(beamGroup);
+    this.laserBeams.set(cannonId, beamGroup);
   }
 
   /**
    * Update laser beam position when cannon moves.
    */
   private updateLaserBeam(cannonId: string, position: THREE.Vector3): void {
-    const line = this.laserBeams.get(cannonId);
-    if (!line || !this.roomBounds || !this.playerNumber) return;
+    const beamGroup = this.laserBeams.get(cannonId);
+    if (!beamGroup || !this.roomBounds || !this.playerNumber) return;
 
     // Determine cannon owner's player number for fire direction
     const entity = this._blocks.get(cannonId);
@@ -210,27 +386,43 @@ export class BlockRenderer {
     const ownerPlayerNumber = isMyBlock ? this.playerNumber : this.playerNumber === 1 ? 2 : 1;
     const targetZ = ownerPlayerNumber === 1 ? this.roomBounds.minZ : this.roomBounds.maxZ;
 
-    // Update geometry positions
-    const positions = line.geometry.attributes.position as THREE.BufferAttribute;
-    positions.setXYZ(0, position.x, position.y, position.z);
-    positions.setXYZ(1, position.x, position.y, targetZ);
-    positions.needsUpdate = true;
+    // Update beam lines
+    beamGroup.traverse((child) => {
+      if (child instanceof THREE.Line && (child.name === 'beamLine' || child.name === 'glowLine')) {
+        const positions = child.geometry.attributes.position as THREE.BufferAttribute;
+        positions.setXYZ(0, position.x, position.y, position.z);
+        positions.setXYZ(1, position.x, position.y, targetZ);
+        positions.needsUpdate = true;
+      }
+    });
 
-    // Recompute line distances for dashed effect
-    line.computeLineDistances();
+    // Update crosshair position
+    const crosshair = beamGroup.getObjectByName('crosshair');
+    if (crosshair) {
+      crosshair.position.set(position.x, position.y, targetZ + (ownerPlayerNumber === 1 ? 0.02 : -0.02));
+    }
   }
 
   /**
-   * Remove a laser beam.
+   * Remove a laser beam and all its components.
    */
   private removeLaserBeam(cannonId: string): void {
-    const line = this.laserBeams.get(cannonId);
-    if (line) {
-      this.scene.remove(line);
-      line.geometry.dispose();
-      if (line.material instanceof THREE.Material) {
-        line.material.dispose();
-      }
+    const beamGroup = this.laserBeams.get(cannonId);
+    if (beamGroup) {
+      this.scene.remove(beamGroup);
+      beamGroup.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose();
+          if (child.material instanceof THREE.Material) {
+            child.material.dispose();
+          }
+        } else if (child instanceof THREE.Line) {
+          child.geometry.dispose();
+          if (child.material instanceof THREE.Material) {
+            child.material.dispose();
+          }
+        }
+      });
       this.laserBeams.delete(cannonId);
     }
   }
@@ -305,10 +497,24 @@ export class BlockRenderer {
     const entity = this._blocks.get(blockId);
     if (entity) {
       this.scene.remove(entity.mesh);
-      entity.mesh.geometry.dispose();
-      if (entity.mesh.material instanceof THREE.Material) {
-        entity.mesh.material.dispose();
+
+      // Handle group disposal (cannon) vs single mesh disposal (regular block)
+      if (entity.mesh instanceof THREE.Group) {
+        entity.mesh.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.geometry.dispose();
+            if (child.material instanceof THREE.Material) {
+              child.material.dispose();
+            }
+          }
+        });
+      } else if (entity.mesh instanceof THREE.Mesh) {
+        entity.mesh.geometry.dispose();
+        if (entity.mesh.material instanceof THREE.Material) {
+          entity.mesh.material.dispose();
+        }
       }
+
       this._blocks.delete(blockId);
       this.myBlockIds.delete(blockId);
 
@@ -399,9 +605,28 @@ export class BlockRenderer {
           entity.baseY + Math.sin(elapsedTime + entity.phase) * BLOCK_FLOAT_AMPLITUDE;
       }
 
-      // Update laser beam position for all cannons (grabbed or floating)
-      if (entity.data.blockType === 'cannon' && this.laserBeams.has(id)) {
-        this.updateLaserBeam(id, entity.mesh.position);
+      // Update cannon-specific effects
+      if (entity.data.blockType === 'cannon') {
+        // Update laser beam position
+        if (this.laserBeams.has(id)) {
+          this.updateLaserBeam(id, entity.mesh.position);
+        }
+
+        // Pulse the cannon emissive glow
+        if (entity.mesh instanceof THREE.Group) {
+          const pulseIntensity =
+            CANNON_VISUAL.EMISSIVE_INTENSITY +
+            Math.sin(elapsedTime * CANNON_VISUAL.PULSE_SPEED + entity.phase) *
+              CANNON_VISUAL.PULSE_RANGE;
+
+          entity.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+              if (child.material.emissiveIntensity > 0.1) {
+                child.material.emissiveIntensity = pulseIntensity;
+              }
+            }
+          });
+        }
       }
     }
 

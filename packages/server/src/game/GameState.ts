@@ -13,7 +13,7 @@ import {
   fireCannonAuto as cannonSystemFireAuto,
   isCannonReady as cannonSystemIsReady,
 } from './CannonSystem.js';
-import { resolveBlockCollisions } from './CollisionSystem.js';
+import { blocksCollide, resolveBlockCollisions } from './CollisionSystem.js';
 import { updateProjectiles as projectileSystemUpdate } from './ProjectileSystem.js';
 import {
   BLOCK_COLLISION_ENABLED,
@@ -191,18 +191,61 @@ export class GameState {
     );
   }
 
+  /**
+   * Find a valid spawn position that doesn't overlap with existing blocks.
+   * @param existingBlocks - Map of already placed blocks
+   * @param spawnZ - Z coordinate for spawning
+   * @param room - Room bounds
+   * @param includeY - Whether to randomize Y (true for regular blocks, false for cannon)
+   * @param maxAttempts - Maximum attempts before giving up
+   * @returns A valid position or the last attempted position if max attempts reached
+   */
+  private findValidSpawnPosition(
+    existingBlocks: ReadonlyMap<BlockId, Block>,
+    spawnZ: number,
+    room: { minX: number; maxX: number; minY: number; maxY: number },
+    includeY: boolean,
+    maxAttempts = 50
+  ): Position {
+    const minSeparation = 1.2; // Slightly larger than block size to ensure no overlap
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const candidate: Position = {
+        x: (Math.random() - 0.5) * (room.maxX - room.minX - 2),
+        y: includeY ? (Math.random() - 0.5) * (room.maxY - room.minY - 2) : 0,
+        z: spawnZ,
+      };
+
+      // Check against all existing blocks
+      let hasCollision = false;
+      for (const block of existingBlocks.values()) {
+        if (blocksCollide(candidate, block.position, minSeparation)) {
+          hasCollision = true;
+          break;
+        }
+      }
+
+      if (!hasCollision) {
+        return candidate;
+      }
+    }
+
+    // Fallback: return a position even if it might overlap (shouldn't happen with reasonable block counts)
+    return {
+      x: (Math.random() - 0.5) * (room.maxX - room.minX - 2),
+      y: includeY ? (Math.random() - 0.5) * (room.maxY - room.minY - 2) : 0,
+      z: spawnZ,
+    };
+  }
+
   private createPlayerBlocks(playerId: PlayerId, playerNumber: PlayerNumber): Map<BlockId, Block> {
     const newBlocks = new Map(this._blocks);
     const spawnZ = getPlayerSpawnZ(playerNumber, this._config.room);
     const { room } = this._config;
 
-    // Create cannon block
+    // Create cannon block with collision-free position
     const cannonId = `${playerId}-cannon`;
-    const cannonPosition: Position = {
-      x: (Math.random() - 0.5) * (room.maxX - room.minX - 2),
-      y: 0,
-      z: spawnZ,
-    };
+    const cannonPosition = this.findValidSpawnPosition(newBlocks, spawnZ, room, false);
     const cannonBlock: Block = {
       id: cannonId,
       position: clampToRoom(cannonPosition, room),
@@ -212,7 +255,7 @@ export class GameState {
     };
     newBlocks.set(cannonId, cannonBlock);
 
-    // Create regular blocks
+    // Create regular blocks with collision-free positions
     for (let i = 0; i < this._config.blocksPerPlayer; i++) {
       const blockId = `${playerId}-block-${i}`;
       const colorIndex = i % BLOCK_COLORS.length;
@@ -220,11 +263,7 @@ export class GameState {
 
       if (color === undefined) continue;
 
-      const rawPosition: Position = {
-        x: (Math.random() - 0.5) * (room.maxX - room.minX - 2),
-        y: (Math.random() - 0.5) * (room.maxY - room.minY - 2),
-        z: spawnZ,
-      };
+      const rawPosition = this.findValidSpawnPosition(newBlocks, spawnZ, room, true);
 
       const block: Block = {
         id: blockId,

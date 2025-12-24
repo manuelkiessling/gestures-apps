@@ -84,77 +84,102 @@ export class SceneManager {
     const positions = new Float32Array(STARFIELD.COUNT * 3);
     const colors = new Float32Array(STARFIELD.COUNT * 3);
     const sizes = new Float32Array(STARFIELD.COUNT);
+    const twinklePhases = new Float32Array(STARFIELD.COUNT);
 
     for (let i = 0; i < STARFIELD.COUNT; i++) {
-      // Spherical distribution
+      // Spherical distribution with denser clusters
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = STARFIELD.RADIUS * (0.5 + Math.random() * 0.5);
+      const r = STARFIELD.RADIUS * (0.4 + Math.random() * 0.6);
 
       positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = r * Math.cos(phi);
 
-      // Star colors
+      // More varied star colors with better distribution
       const colorRoll = Math.random();
-      if (colorRoll < 0.7) {
-        // Blue-white stars
-        colors[i * 3] = 0.8 + Math.random() * 0.2;
-        colors[i * 3 + 1] = 0.85 + Math.random() * 0.15;
+      if (colorRoll < 0.5) {
+        // Blue-white stars (O, B, A type)
+        const blueIntensity = 0.7 + Math.random() * 0.3;
+        colors[i * 3] = 0.7 + Math.random() * 0.3;
+        colors[i * 3 + 1] = 0.8 + Math.random() * 0.2;
+        colors[i * 3 + 2] = blueIntensity;
+      } else if (colorRoll < 0.7) {
+        // Pure white (A type)
+        colors[i * 3] = 0.95 + Math.random() * 0.05;
+        colors[i * 3 + 1] = 0.95 + Math.random() * 0.05;
         colors[i * 3 + 2] = 1.0;
       } else if (colorRoll < 0.85) {
-        // Pure white
+        // Yellow stars (G type, like Sun)
         colors[i * 3] = 1.0;
-        colors[i * 3 + 1] = 1.0;
-        colors[i * 3 + 2] = 1.0;
+        colors[i * 3 + 1] = 0.9 + Math.random() * 0.1;
+        colors[i * 3 + 2] = 0.7 + Math.random() * 0.2;
       } else if (colorRoll < 0.95) {
-        // Yellow/orange stars
+        // Orange stars (K type)
         colors[i * 3] = 1.0;
-        colors[i * 3 + 1] = 0.8 + Math.random() * 0.15;
-        colors[i * 3 + 2] = 0.5 + Math.random() * 0.3;
-      } else {
-        // Red giants
-        colors[i * 3] = 1.0;
-        colors[i * 3 + 1] = 0.4 + Math.random() * 0.2;
+        colors[i * 3 + 1] = 0.6 + Math.random() * 0.2;
         colors[i * 3 + 2] = 0.3 + Math.random() * 0.2;
+      } else {
+        // Red giants (M type)
+        colors[i * 3] = 1.0;
+        colors[i * 3 + 1] = 0.3 + Math.random() * 0.2;
+        colors[i * 3 + 2] = 0.2 + Math.random() * 0.1;
       }
 
-      // Star sizes
+      // Star sizes with more variation
       const sizeRoll = Math.random();
-      if (sizeRoll < 0.8) {
-        sizes[i] = 0.5 + Math.random() * 1.0;
-      } else if (sizeRoll < 0.95) {
-        sizes[i] = 1.5 + Math.random() * 1.5;
+      if (sizeRoll < 0.75) {
+        sizes[i] = 0.4 + Math.random() * 0.8;
+      } else if (sizeRoll < 0.92) {
+        sizes[i] = 1.2 + Math.random() * 1.5;
+      } else if (sizeRoll < 0.98) {
+        sizes[i] = 2.7 + Math.random() * 2.0;
       } else {
-        sizes[i] = 3.0 + Math.random() * 2.0;
+        // A few very bright stars
+        sizes[i] = 4.5 + Math.random() * 2.5;
       }
+
+      // Random phase for twinkling
+      twinklePhases[i] = Math.random() * Math.PI * 2;
     }
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    geometry.setAttribute('twinklePhase', new THREE.BufferAttribute(twinklePhases, 1));
 
     const starMaterial = new THREE.ShaderMaterial({
-      uniforms: {},
+      uniforms: {
+        time: { value: 0 },
+      },
       vertexShader: `
         attribute float size;
+        attribute float twinklePhase;
         varying vec3 vColor;
+        varying float vTwinkle;
+        uniform float time;
         void main() {
           vColor = color;
+          // Subtle twinkling effect
+          vTwinkle = 0.85 + 0.15 * sin(time * 2.0 + twinklePhase);
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (200.0 / -mvPosition.z);
+          gl_PointSize = size * vTwinkle * (200.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
       fragmentShader: `
         varying vec3 vColor;
+        varying float vTwinkle;
         void main() {
           vec2 center = gl_PointCoord - vec2(0.5);
           float dist = length(center);
           if (dist > 0.5) discard;
-          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-          gl_FragColor = vec4(vColor, alpha);
+          // Soft glow falloff
+          float alpha = pow(1.0 - smoothstep(0.0, 0.5, dist), 1.5) * vTwinkle;
+          // Add subtle glow halo
+          float glow = exp(-dist * 4.0) * 0.3;
+          gl_FragColor = vec4(vColor * (1.0 + glow), alpha);
         }
       `,
       transparent: true,
@@ -171,31 +196,50 @@ export class SceneManager {
   private createNebulae(): THREE.Group {
     const nebulaGroup = new THREE.Group();
 
+    // More vibrant and varied nebula colors
     const nebulaColors = [
-      { color: 0x4a1a6b, opacity: 0.08 },
-      { color: 0x1a3a6b, opacity: 0.06 },
-      { color: 0x6b1a3a, opacity: 0.05 },
+      { color: 0x6b2a9e, opacity: 0.12 }, // Deep purple
+      { color: 0x1a5a8b, opacity: 0.10 }, // Ocean blue
+      { color: 0x8b1a4a, opacity: 0.08 }, // Magenta
+      { color: 0x2a8b6b, opacity: 0.07 }, // Teal
+      { color: 0x4a1a8b, opacity: 0.09 }, // Violet
+      { color: 0x1a3a6b, opacity: 0.08 }, // Navy blue
+      { color: 0x6b4a1a, opacity: 0.06 }, // Bronze glow
+      { color: 0x3a1a6b, opacity: 0.10 }, // Indigo
     ];
 
     for (let i = 0; i < STARFIELD.NEBULA_COUNT; i++) {
       const colorData = nebulaColors[i % nebulaColors.length];
       if (!colorData) continue;
-      const size = 80 + Math.random() * 120;
+      const size = 100 + Math.random() * 150;
 
-      // Create gradient texture
+      // Create higher resolution gradient texture with more detail
       const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 128;
+      canvas.width = 256;
+      canvas.height = 256;
       const ctx = canvas.getContext('2d');
       if (!ctx) continue;
 
-      const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-      gradient.addColorStop(0, `rgba(255, 255, 255, ${colorData.opacity})`);
-      gradient.addColorStop(0.4, `rgba(255, 255, 255, ${colorData.opacity * 0.5})`);
+      // Multi-layered gradient for more depth
+      const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+      gradient.addColorStop(0, `rgba(255, 255, 255, ${colorData.opacity * 1.5})`);
+      gradient.addColorStop(0.2, `rgba(255, 255, 255, ${colorData.opacity})`);
+      gradient.addColorStop(0.5, `rgba(255, 255, 255, ${colorData.opacity * 0.5})`);
+      gradient.addColorStop(0.8, `rgba(255, 255, 255, ${colorData.opacity * 0.2})`);
       gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
       ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillRect(0, 0, 256, 256);
+
+      // Add some noise/texture to break up uniformity
+      const imageData = ctx.getImageData(0, 0, 256, 256);
+      for (let j = 0; j < imageData.data.length; j += 4) {
+        const noise = (Math.random() - 0.5) * 20;
+        imageData.data[j] = Math.max(0, Math.min(255, imageData.data[j]! + noise));
+        imageData.data[j + 1] = Math.max(0, Math.min(255, imageData.data[j + 1]! + noise));
+        imageData.data[j + 2] = Math.max(0, Math.min(255, imageData.data[j + 2]! + noise));
+      }
+      ctx.putImageData(imageData, 0, 0);
 
       const texture = new THREE.CanvasTexture(canvas);
 
@@ -211,10 +255,10 @@ export class SceneManager {
       const nebulaGeo = new THREE.PlaneGeometry(size, size);
       const nebula = new THREE.Mesh(nebulaGeo, nebulaMat);
 
-      // Position far away in random direction
+      // Position far away in random direction, avoiding the play area
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const dist = 120 + Math.random() * 50;
+      const dist = 100 + Math.random() * 80;
 
       nebula.position.set(
         dist * Math.sin(phi) * Math.cos(theta),
@@ -272,6 +316,27 @@ export class SceneManager {
    */
   getDeltaTime(): number {
     return this.clock.getDelta();
+  }
+
+  /**
+   * Update scene animations (call each frame).
+   * @param elapsedTime - Total elapsed time in seconds
+   */
+  update(elapsedTime: number): void {
+    // Update starfield twinkling
+    if (this.starfield) {
+      const material = this.starfield.material as THREE.ShaderMaterial;
+      if (material.uniforms.time) {
+        material.uniforms.time.value = elapsedTime;
+      }
+      // Slow rotation for subtle movement
+      this.starfield.rotation.y = elapsedTime * STARFIELD.ROTATION_SPEED;
+    }
+
+    // Subtle nebula rotation (even slower)
+    if (this.nebulae) {
+      this.nebulae.rotation.y = elapsedTime * STARFIELD.ROTATION_SPEED * 0.3;
+    }
   }
 
   /**

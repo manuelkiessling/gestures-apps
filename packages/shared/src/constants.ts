@@ -7,19 +7,20 @@
 
 /**
  * Available colors for regular blocks (hex values).
+ * Excludes red/pink hues to clearly distinguish from cannons.
  */
 export const BLOCK_COLORS = [
-  0x4a9eff, // Blue
-  0xa855f7, // Purple
-  0xec4899, // Pink
-  0x22c55e, // Green
-  0xf59e0b, // Orange
+  0x4a9eff, // Bright blue
+  0x8b5cf6, // Vivid purple
+  0x22d3ee, // Cyan
+  0x22c55e, // Emerald green
+  0xfbbf24, // Amber/gold
 ] as const;
 
 /**
- * Color for cannon blocks (bright red-pink).
+ * Color for cannon blocks (vivid red for clear distinction).
  */
-export const CANNON_COLOR = 0xff3366;
+export const CANNON_COLOR = 0xff2222;
 
 /**
  * Color for projectiles (bright yellow).

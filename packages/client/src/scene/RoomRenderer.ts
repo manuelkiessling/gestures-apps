@@ -3,7 +3,7 @@
  */
 
 import * as THREE from 'three';
-import { SCENE_COLORS } from '../constants.js';
+import { ROOM_VISUAL, SCENE_COLORS } from '../constants.js';
 import type { RoomBounds } from '../types.js';
 
 /**
@@ -13,9 +13,52 @@ export class RoomRenderer {
   private readonly scene: THREE.Scene;
   private roomWireframe: THREE.Group | null = null;
   private floorGrid: THREE.GridHelper | null = null;
+  private cornerMarkers: THREE.Group | null = null;
+  private energyFields: THREE.Group | null = null;
+  private pulseMaterials: THREE.LineBasicMaterial[] = [];
+  private baseOpacity = 0.6;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+  }
+
+  /**
+   * Create a corner marker (L-shaped bracket).
+   */
+  private createCornerMarker(size: number): THREE.Group {
+    const group = new THREE.Group();
+    const material = new THREE.LineBasicMaterial({
+      color: SCENE_COLORS.ROOM_WIREFRAME,
+      transparent: true,
+      opacity: ROOM_VISUAL.CORNER_OPACITY,
+    });
+    this.pulseMaterials.push(material);
+
+    // Create L-shape in XY plane
+    const points1 = [
+      new THREE.Vector3(0, size, 0),
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(size, 0, 0),
+    ];
+    const line1 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points1),
+      material
+    );
+    group.add(line1);
+
+    // Create L-shape in XZ plane
+    const points2 = [
+      new THREE.Vector3(0, 0, size),
+      new THREE.Vector3(0, 0, 0),
+    ];
+    const line2 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points2),
+      material.clone()
+    );
+    this.pulseMaterials.push(line2.material as THREE.LineBasicMaterial);
+    group.add(line2);
+
+    return group;
   }
 
   /**
@@ -40,18 +83,19 @@ export class RoomRenderer {
     const material = new THREE.LineBasicMaterial({
       color: SCENE_COLORS.ROOM_WIREFRAME,
       transparent: true,
-      opacity: 0.6,
+      opacity: this.baseOpacity,
     });
+    this.pulseMaterials.push(material);
     const mainWireframe = new THREE.LineSegments(edges, material);
     this.roomWireframe.add(mainWireframe);
 
     // Add subtle glow layer (slightly larger, more transparent)
-    const glowGeometry = new THREE.BoxGeometry(width + 0.1, height + 0.1, depth + 0.1);
+    const glowGeometry = new THREE.BoxGeometry(width + 0.15, height + 0.15, depth + 0.15);
     const glowEdges = new THREE.EdgesGeometry(glowGeometry);
     const glowMaterial = new THREE.LineBasicMaterial({
       color: SCENE_COLORS.ROOM_WIREFRAME,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.2,
     });
     const glowWireframe = new THREE.LineSegments(glowEdges, glowMaterial);
     this.roomWireframe.add(glowWireframe);
@@ -61,10 +105,75 @@ export class RoomRenderer {
 
     this.scene.add(this.roomWireframe);
 
+    // Create corner markers
+    this.cornerMarkers = new THREE.Group();
+    const cornerSize = ROOM_VISUAL.CORNER_SIZE;
+
+    // 8 corners of the room
+    const corners = [
+      { pos: [minX, minY, minZ], rot: [0, 0, 0] },
+      { pos: [maxX, minY, minZ], rot: [0, Math.PI / 2, 0] },
+      { pos: [maxX, minY, maxZ], rot: [0, Math.PI, 0] },
+      { pos: [minX, minY, maxZ], rot: [0, -Math.PI / 2, 0] },
+      { pos: [minX, maxY, minZ], rot: [0, 0, Math.PI] },
+      { pos: [maxX, maxY, minZ], rot: [0, Math.PI / 2, Math.PI] },
+      { pos: [maxX, maxY, maxZ], rot: [0, Math.PI, Math.PI] },
+      { pos: [minX, maxY, maxZ], rot: [0, -Math.PI / 2, Math.PI] },
+    ];
+
+    for (const corner of corners) {
+      const marker = this.createCornerMarker(cornerSize);
+      marker.position.set(corner.pos[0]!, corner.pos[1]!, corner.pos[2]!);
+      marker.rotation.set(corner.rot[0]!, corner.rot[1]!, corner.rot[2]!);
+      this.cornerMarkers.add(marker);
+    }
+    this.scene.add(this.cornerMarkers);
+
+    // Create subtle energy field panels on the walls
+    this.energyFields = new THREE.Group();
+    const fieldMaterial = new THREE.MeshBasicMaterial({
+      color: SCENE_COLORS.ROOM_WIREFRAME,
+      transparent: true,
+      opacity: ROOM_VISUAL.FIELD_OPACITY,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+
+    // Front and back walls (Z planes)
+    const wallGeomZ = new THREE.PlaneGeometry(width, height);
+    const frontWall = new THREE.Mesh(wallGeomZ, fieldMaterial);
+    frontWall.position.set((minX + maxX) / 2, (minY + maxY) / 2, minZ);
+    this.energyFields.add(frontWall);
+
+    const backWall = new THREE.Mesh(wallGeomZ, fieldMaterial.clone());
+    backWall.position.set((minX + maxX) / 2, (minY + maxY) / 2, maxZ);
+    this.energyFields.add(backWall);
+
+    // Side walls (X planes)
+    const wallGeomX = new THREE.PlaneGeometry(depth, height);
+    const leftWall = new THREE.Mesh(wallGeomX, fieldMaterial.clone());
+    leftWall.position.set(minX, (minY + maxY) / 2, (minZ + maxZ) / 2);
+    leftWall.rotation.y = Math.PI / 2;
+    this.energyFields.add(leftWall);
+
+    const rightWall = new THREE.Mesh(wallGeomX, fieldMaterial.clone());
+    rightWall.position.set(maxX, (minY + maxY) / 2, (minZ + maxZ) / 2);
+    rightWall.rotation.y = Math.PI / 2;
+    this.energyFields.add(rightWall);
+
+    // Top wall (Y plane)
+    const wallGeomY = new THREE.PlaneGeometry(width, depth);
+    const topWall = new THREE.Mesh(wallGeomY, fieldMaterial.clone());
+    topWall.position.set((minX + maxX) / 2, maxY, (minZ + maxZ) / 2);
+    topWall.rotation.x = Math.PI / 2;
+    this.energyFields.add(topWall);
+
+    this.scene.add(this.energyFields);
+
     // Add floor grid inside the room
     this.floorGrid = new THREE.GridHelper(
       Math.max(width, depth),
-      20,
+      24, // More grid lines for detail
       SCENE_COLORS.GRID_MAIN,
       SCENE_COLORS.GRID_SECONDARY
     );
@@ -75,14 +184,28 @@ export class RoomRenderer {
     if (Array.isArray(gridMaterial)) {
       for (const mat of gridMaterial) {
         mat.transparent = true;
-        mat.opacity = 0.3;
+        mat.opacity = 0.35;
       }
     } else {
       gridMaterial.transparent = true;
-      gridMaterial.opacity = 0.3;
+      gridMaterial.opacity = 0.35;
     }
 
     this.scene.add(this.floorGrid);
+  }
+
+  /**
+   * Update room visual animations (call each frame).
+   * @param elapsedTime - Total elapsed time in seconds
+   */
+  update(elapsedTime: number): void {
+    // Pulse the wireframe edges
+    const pulseValue = this.baseOpacity +
+      Math.sin(elapsedTime * ROOM_VISUAL.PULSE_SPEED) * ROOM_VISUAL.PULSE_RANGE;
+
+    for (const material of this.pulseMaterials) {
+      material.opacity = pulseValue;
+    }
   }
 
   /**
@@ -102,6 +225,32 @@ export class RoomRenderer {
       this.roomWireframe = null;
     }
 
+    if (this.cornerMarkers) {
+      this.scene.remove(this.cornerMarkers);
+      this.cornerMarkers.traverse((obj) => {
+        if (obj instanceof THREE.Line) {
+          obj.geometry.dispose();
+          if (obj.material instanceof THREE.Material) {
+            obj.material.dispose();
+          }
+        }
+      });
+      this.cornerMarkers = null;
+    }
+
+    if (this.energyFields) {
+      this.scene.remove(this.energyFields);
+      this.energyFields.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          if (obj.material instanceof THREE.Material) {
+            obj.material.dispose();
+          }
+        }
+      });
+      this.energyFields = null;
+    }
+
     if (this.floorGrid) {
       this.scene.remove(this.floorGrid);
       this.floorGrid.geometry.dispose();
@@ -115,5 +264,7 @@ export class RoomRenderer {
       }
       this.floorGrid = null;
     }
+
+    this.pulseMaterials = [];
   }
 }

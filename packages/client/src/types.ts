@@ -36,9 +36,10 @@ export type HandLandmarks = HandLandmark[];
 
 /**
  * Extended block data with Three.js mesh and local state.
+ * Mesh can be a single Mesh (regular blocks) or a Group (cannons with complex geometry).
  */
 export interface BlockEntity {
-  mesh: THREE.Mesh;
+  mesh: THREE.Mesh | THREE.Group;
   data: Block;
   /** Base Y position for floating animation */
   baseY: number;

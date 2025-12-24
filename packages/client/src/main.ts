@@ -416,6 +416,8 @@ class Game {
     const grabbedBlockId = this.interactionManager.getGrabbedBlockId();
     this.blockRenderer.updateAnimations(elapsed, grabbedBlockId);
     this.effectsManager.update(deltaTime);
+    this.sceneManager.update(elapsed);
+    this.roomRenderer.update(elapsed);
 
     // Render
     this.sceneManager.render();

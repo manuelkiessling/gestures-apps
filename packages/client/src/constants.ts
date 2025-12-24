@@ -78,11 +78,28 @@ export const GRAB_RELEASE_GRACE_MS = 150;
 
 export const STARFIELD = {
   /** Number of stars to render */
-  COUNT: 3000,
+  COUNT: 5000,
   /** Radius of star sphere */
-  RADIUS: 200,
+  RADIUS: 250,
   /** Number of nebula clouds */
-  NEBULA_COUNT: 5,
+  NEBULA_COUNT: 8,
+  /** Slow rotation speed for subtle movement */
+  ROTATION_SPEED: 0.0002,
+} as const;
+
+// ============ Room Visual Constants ============
+
+export const ROOM_VISUAL = {
+  /** Corner marker size */
+  CORNER_SIZE: 0.6,
+  /** Corner marker opacity */
+  CORNER_OPACITY: 0.9,
+  /** Edge pulse speed (radians per second) */
+  PULSE_SPEED: 1.5,
+  /** Edge pulse range (opacity variation) */
+  PULSE_RANGE: 0.15,
+  /** Energy field panel opacity */
+  FIELD_OPACITY: 0.03,
 } as const;
 
 // ============ Visual Effect Constants ============
@@ -106,22 +123,40 @@ export const PROJECTILE_COLORS = {
   OPPONENT: 0xff4444,
 } as const;
 
+// ============ Cannon Visual Constants ============
+
+/**
+ * Cannon appearance settings.
+ */
+export const CANNON_VISUAL = {
+  /** Emissive intensity for cannon barrel */
+  EMISSIVE_INTENSITY: 0.5,
+  /** Muzzle ring glow intensity */
+  MUZZLE_GLOW: 0.8,
+  /** Pulse animation speed (radians per second) */
+  PULSE_SPEED: 3,
+  /** Pulse intensity range (min-max emissive variation) */
+  PULSE_RANGE: 0.2,
+} as const;
+
 // ============ Laser Beam Constants ============
 
 /**
- * Cannon laser beam indicator styling.
+ * Cannon laser/aiming beam indicator styling.
  */
 export const LASER_BEAM = {
   /** Yellow - own cannon beam */
   COLOR_OWN: 0xffff00,
   /** Red - opponent cannon beam */
   COLOR_OPPONENT: 0xff4444,
-  /** Laser beam opacity */
-  OPACITY: 0.35,
-  /** Dash size for dashed line */
-  DASH_SIZE: 0.3,
-  /** Gap size between dashes */
-  GAP_SIZE: 0.15,
+  /** Laser beam base opacity */
+  OPACITY: 0.6,
+  /** Line width (note: may not work on all platforms) */
+  LINE_WIDTH: 2,
+  /** Crosshair size at beam endpoint */
+  CROSSHAIR_SIZE: 0.5,
+  /** Crosshair inner ring size */
+  CROSSHAIR_INNER_SIZE: 0.15,
 } as const;
 
 // ============ MediaPipe Configuration ============
