@@ -24,6 +24,8 @@ export class StatusDisplay {
   private readonly playerInfoElement: HTMLElement;
   private readonly serverConfigElement: HTMLElement;
   private readonly fallbackElement: HTMLElement;
+  private readonly handRaiseOverlay: HTMLElement;
+  private readonly overlayWebcam: HTMLVideoElement;
 
   constructor() {
     this.statusElement = getRequiredElement('status');
@@ -31,6 +33,8 @@ export class StatusDisplay {
     this.playerInfoElement = getRequiredElement('player-info');
     this.serverConfigElement = getRequiredElement('server-config');
     this.fallbackElement = getRequiredElement('fallback');
+    this.handRaiseOverlay = getRequiredElement('hand-raise-overlay');
+    this.overlayWebcam = getRequiredElement('overlay-webcam') as HTMLVideoElement;
   }
 
   /**
@@ -92,6 +96,37 @@ export class StatusDisplay {
    */
   hideFallback(): void {
     this.fallbackElement.classList.add('hidden');
+  }
+
+  /**
+   * Show the hand raise overlay (waiting for hand to start game).
+   */
+  showHandRaiseOverlay(): void {
+    this.handRaiseOverlay.classList.remove('hidden');
+    this.handRaiseOverlay.classList.remove('fade-out');
+  }
+
+  /**
+   * Sync the camera stream to the overlay webcam preview.
+   */
+  syncOverlayCamera(sourceVideo: HTMLVideoElement): void {
+    if (sourceVideo.srcObject) {
+      this.overlayWebcam.srcObject = sourceVideo.srcObject;
+      this.overlayWebcam.play().catch(() => {
+        // Ignore autoplay errors - user will see it when they interact
+      });
+    }
+  }
+
+  /**
+   * Hide the hand raise overlay with a fade animation.
+   */
+  hideHandRaiseOverlay(): void {
+    this.handRaiseOverlay.classList.add('fade-out');
+    // Remove from DOM after animation completes
+    setTimeout(() => {
+      this.handRaiseOverlay.classList.add('hidden');
+    }, 400);
   }
 
   /**

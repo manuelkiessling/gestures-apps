@@ -295,7 +295,18 @@ class Game {
 
       this.handTracker.start();
       this.statusDisplay.hideFallback();
-      this.statusDisplay.updateStatus('Ready - pinch to grab your blocks');
+
+      // Show hand raise overlay if game is waiting
+      if (this.gamePhase === 'waiting') {
+        this.statusDisplay.showHandRaiseOverlay();
+        // Sync the camera stream to the overlay preview
+        const webcamVideo = document.getElementById('webcam') as HTMLVideoElement;
+        if (webcamVideo) {
+          this.statusDisplay.syncOverlayCamera(webcamVideo);
+        }
+      } else {
+        this.statusDisplay.updateStatus('Ready - pinch to grab your blocks');
+      }
     } catch (err) {
       console.error('Failed to initialize hand tracking:', err);
       this.statusDisplay.showFallback();
@@ -314,6 +325,10 @@ class Game {
       this.playerReadySent = true;
       this.gameClient.sendPlayerReady();
       console.log('Hand detected - player ready sent');
+
+      // Hide the hand raise overlay with fade animation
+      this.statusDisplay.hideHandRaiseOverlay();
+
       if (this.gamePhase === 'waiting') {
         this.statusDisplay.updateStatus('Waiting for game to start...');
       }

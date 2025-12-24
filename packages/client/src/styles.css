@@ -165,3 +165,178 @@ body {
 #server-config button:hover {
   background: #3a8eef;
 }
+
+/* Hand raise overlay */
+#hand-raise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 15, 30, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  animation: overlayFadeIn 0.3s ease-out;
+}
+
+#hand-raise-overlay.hidden {
+  display: none;
+}
+
+#hand-raise-overlay.fade-out {
+  animation: overlayFadeOut 0.4s ease-in forwards;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overlayFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#hand-raise-overlay .overlay-content {
+  text-align: center;
+  max-width: 500px;
+  padding: 40px;
+}
+
+#hand-raise-overlay .overlay-camera {
+  position: relative;
+  width: 240px;
+  height: 180px;
+  margin: 0 auto 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+}
+
+#hand-raise-overlay .overlay-camera video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+#hand-raise-overlay .overlay-camera .camera-border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 3px solid #4a9eff;
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow: 0 0 20px rgba(74, 158, 255, 0.3);
+}
+
+#hand-raise-overlay .hand-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  animation: handPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes handPulse {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1) translateY(-10px);
+    opacity: 0.8;
+  }
+}
+
+#hand-raise-overlay h1 {
+  color: #fff;
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  letter-spacing: -0.5px;
+}
+
+#hand-raise-overlay .subtitle {
+  color: #8888aa;
+  font-size: 16px;
+  margin-bottom: 30px;
+}
+
+#hand-raise-overlay .divider {
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, #4a9eff, #00ff88);
+  margin: 0 auto 30px;
+  border-radius: 2px;
+}
+
+#hand-raise-overlay .instructions {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 24px 30px;
+  text-align: left;
+  margin-bottom: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#hand-raise-overlay .instructions h2 {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+
+#hand-raise-overlay .instructions ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#hand-raise-overlay .instructions li {
+  color: #ccc;
+  font-size: 15px;
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#hand-raise-overlay .instructions li .icon {
+  font-size: 20px;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+#hand-raise-overlay .instructions li strong {
+  color: #fff;
+}
+
+#hand-raise-overlay .waiting-text {
+  color: #4a9eff;
+  font-size: 14px;
+  animation: waitingPulse 2s ease-in-out infinite;
+}
+
+@keyframes waitingPulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
