@@ -9,8 +9,11 @@ set -euo pipefail
 # - Container names must match pattern: hbc-session-[a-z0-9]+
 # - Only allows the hbc-game-session image for 'run' command
 #
-# Usage via sudoers (see README.md):
-#   www-data ALL=(root) NOPASSWD: /path/to/docker-cli-wrapper.sh *
+# Usage:
+#   The script is executed from within the lobby container via bash:
+#   bash /app/bin/docker-cli-wrapper.sh <command> [args...]
+#
+#   The container has access to the host Docker daemon via mounted socket.
 
 # Allowed subcommands
 ALLOWED_CMDS=("run" "stop" "rm" "ps" "inspect")
@@ -21,8 +24,8 @@ CONTAINER_RE='^hbc-session-[a-z0-9]+$'
 # Allowed image name for 'run' command
 ALLOWED_IMAGE="hbc-game-session"
 
-# Docker binary (will be found in PATH when docker-cli is installed)
-# Defaults to /usr/bin/docker but can be overridden via DOCKER_BIN env var
+# Docker binary (will be found in PATH when docker.io is installed)
+# Defaults to 'docker' (found in PATH) but can be overridden via DOCKER_BIN env var
 DOCKER_BIN="${DOCKER_BIN:-docker}"
 
 # Validation mode for testing

@@ -146,8 +146,8 @@ docker stop hbc-session-test
 docker rm hbc-session-test
 
 # Or from inside lobby container using wrapper
-docker exec hbc-lobby /app/bin/docker-cli-wrapper.sh stop hbc-session-test
-docker exec hbc-lobby /app/bin/docker-cli-wrapper.sh rm hbc-session-test
+docker exec hbc-lobby bash /app/bin/docker-cli-wrapper.sh stop hbc-session-test
+docker exec hbc-lobby bash /app/bin/docker-cli-wrapper.sh rm hbc-session-test
 ```
 
 > **Note:** Replace `test` with your desired session ID. The hostname pattern is `{sessionId}-hands-blocks-cannons.dx-tooling.org`, and the container name must match `hbc-session-{sessionId}`.
@@ -163,7 +163,7 @@ cd /var/www/hands-blocks-cannons
 git pull
 
 # Rebuild game session image
-docker build -t hbc-game-session ./docker/game-session
+docker build -t hbc-game-session -f docker/game-session/Dockerfile .
 
 # Rebuild and restart lobby
 docker compose up --build -d
@@ -208,13 +208,19 @@ After deployment, verify everything works:
 
 2. Test Docker access from inside the container:
    ```bash
-   docker exec hbc-lobby /app/bin/docker-cli-wrapper.sh ps
+   docker exec hbc-lobby bash /app/bin/docker-cli-wrapper.sh ps
    # Should list running game session containers
    ```
 
 3. Check the game session image exists:
    ```bash
    docker images | grep hbc-game-session
+   ```
+
+4. Verify the config file is in the correct location (if game server fails to start):
+   ```bash
+   docker exec hbc-session-<sessionid> ls -la /app/config/game.yaml
+   # Should show the config file exists
    ```
 
 ### Game Session Not Accessible
@@ -275,7 +281,7 @@ After deployment, verify everything works:
 │         ▼                                                       │
 │  ┌─────────────┐                                                │
 │  │ docker-cli- │                                                │
-│  │ wrapper.sh  │ ◄── via Docker socket (restricted commands)   │
+│  │ wrapper.sh  │ ◄── via Docker socket (restricted commands)    │
 │  └─────────────┘                                                │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
