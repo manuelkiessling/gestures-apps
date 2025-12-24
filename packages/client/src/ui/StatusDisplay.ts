@@ -26,6 +26,12 @@ export class StatusDisplay {
   private readonly fallbackElement: HTMLElement;
   private readonly handRaiseOverlay: HTMLElement;
   private readonly overlayWebcam: HTMLVideoElement;
+  private readonly gameOverOverlay: HTMLElement;
+  private readonly gameOverIcon: HTMLElement;
+  private readonly gameOverTitle: HTMLElement;
+  private readonly gameOverSubtitle: HTMLElement;
+  private readonly playAgainBtn: HTMLButtonElement;
+  private readonly votingStatus: HTMLElement;
 
   constructor() {
     this.statusElement = getRequiredElement('status');
@@ -35,6 +41,12 @@ export class StatusDisplay {
     this.fallbackElement = getRequiredElement('fallback');
     this.handRaiseOverlay = getRequiredElement('hand-raise-overlay');
     this.overlayWebcam = getRequiredElement('overlay-webcam') as HTMLVideoElement;
+    this.gameOverOverlay = getRequiredElement('game-over-overlay');
+    this.gameOverIcon = getRequiredElement('game-over-icon');
+    this.gameOverTitle = getRequiredElement('game-over-title');
+    this.gameOverSubtitle = getRequiredElement('game-over-subtitle');
+    this.playAgainBtn = getRequiredElement('play-again-btn') as HTMLButtonElement;
+    this.votingStatus = getRequiredElement('voting-status');
   }
 
   /**
@@ -146,5 +158,58 @@ export class StatusDisplay {
         handleConnect();
       }
     });
+  }
+
+  /**
+   * Show the game over overlay.
+   * @param isWinner - Whether the local player won
+   * @param onPlayAgain - Callback when play again button is clicked
+   */
+  showGameOverOverlay(isWinner: boolean, onPlayAgain: () => void): void {
+    if (isWinner) {
+      this.gameOverIcon.textContent = '🏆';
+      this.gameOverTitle.textContent = 'Victory!';
+      this.gameOverTitle.className = 'victory';
+      this.gameOverSubtitle.textContent = 'You destroyed all opponent blocks';
+    } else {
+      this.gameOverIcon.textContent = '💔';
+      this.gameOverTitle.textContent = 'Defeat';
+      this.gameOverTitle.className = 'defeat';
+      this.gameOverSubtitle.textContent = 'All your blocks were destroyed';
+    }
+
+    this.votingStatus.textContent = '';
+    this.playAgainBtn.disabled = false;
+
+    // Set up play again button handler
+    const handleClick = (): void => {
+      this.playAgainBtn.disabled = true;
+      this.votingStatus.textContent = 'Waiting for opponent...';
+      onPlayAgain();
+      this.playAgainBtn.removeEventListener('click', handleClick);
+    };
+    this.playAgainBtn.addEventListener('click', handleClick);
+
+    this.gameOverOverlay.classList.remove('hidden');
+    this.gameOverOverlay.classList.remove('fade-out');
+  }
+
+  /**
+   * Update the play again voting status.
+   */
+  updatePlayAgainStatus(votedCount: number, totalPlayers: number): void {
+    if (votedCount > 0 && votedCount < totalPlayers) {
+      this.votingStatus.textContent = `${votedCount}/${totalPlayers} players want to play again...`;
+    }
+  }
+
+  /**
+   * Hide the game over overlay with a fade animation.
+   */
+  hideGameOverOverlay(): void {
+    this.gameOverOverlay.classList.add('fade-out');
+    setTimeout(() => {
+      this.gameOverOverlay.classList.add('hidden');
+    }, 400);
   }
 }

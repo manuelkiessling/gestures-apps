@@ -49,6 +49,12 @@ export interface GameClientEvents {
   onWallHit?: (position: Position, wallSide: 'minZ' | 'maxZ') => void;
   /** Called when game starts (all humans ready) */
   onGameStarted?: () => void;
+  /** Called when game is over */
+  onGameOver?: (winnerId: string, winnerNumber: 1 | 2, reason: string) => void;
+  /** Called when play again voting status updates */
+  onPlayAgainStatus?: (votedPlayerIds: string[], totalPlayers: number) => void;
+  /** Called when game is reset for a new round */
+  onGameReset?: (blocks: Block[]) => void;
   /** Called on server error */
   onError?: (message: string) => void;
 }
@@ -158,6 +164,13 @@ export class GameClient {
     this.send({ type: 'player_ready' });
   }
 
+  /**
+   * Send play again vote message.
+   */
+  sendPlayAgainVote(): void {
+    this.send({ type: 'play_again_vote' });
+  }
+
   // ============ Private Methods ============
 
   private setConnectionState(state: ConnectionState): void {
@@ -229,6 +242,18 @@ export class GameClient {
 
       case 'game_started':
         this.events.onGameStarted?.();
+        break;
+
+      case 'game_over':
+        this.events.onGameOver?.(message.winnerId, message.winnerNumber, message.reason);
+        break;
+
+      case 'play_again_status':
+        this.events.onPlayAgainStatus?.(message.votedPlayerIds, message.totalPlayers);
+        break;
+
+      case 'game_reset':
+        this.events.onGameReset?.(message.blocks);
         break;
 
       case 'error':

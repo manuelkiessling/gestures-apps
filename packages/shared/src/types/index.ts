@@ -83,6 +83,8 @@ export interface Player {
   readonly isBot?: boolean;
   /** Whether this player has raised their hand at least once (server-side only) */
   readonly isReady?: boolean;
+  /** Whether this player has voted to play again (server-side only) */
+  readonly wantsPlayAgain?: boolean;
 }
 
 /**

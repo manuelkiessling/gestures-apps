@@ -342,3 +342,130 @@ body {
     opacity: 1;
   }
 }
+
+/* Game over overlay */
+#game-over-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 15, 30, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  animation: overlayFadeIn 0.3s ease-out;
+}
+
+#game-over-overlay.hidden {
+  display: none;
+}
+
+#game-over-overlay.fade-out {
+  animation: overlayFadeOut 0.4s ease-in forwards;
+}
+
+#game-over-overlay .game-over-content {
+  text-align: center;
+  max-width: 450px;
+  padding: 40px;
+}
+
+#game-over-overlay .trophy-icon {
+  font-size: 100px;
+  margin-bottom: 20px;
+  animation: trophyBounce 0.8s ease-out;
+}
+
+@keyframes trophyBounce {
+  0% {
+    transform: scale(0) rotate(-10deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(5deg);
+  }
+  70% {
+    transform: scale(0.9) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+#game-over-overlay h1 {
+  font-size: 48px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  letter-spacing: -1px;
+}
+
+#game-over-overlay h1.victory {
+  color: #00ff88;
+  text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+}
+
+#game-over-overlay h1.defeat {
+  color: #ff6b6b;
+  text-shadow: 0 0 30px rgba(255, 107, 107, 0.5);
+}
+
+#game-over-overlay .game-over-subtitle {
+  color: #8888aa;
+  font-size: 18px;
+  margin-bottom: 30px;
+}
+
+#game-over-overlay .divider {
+  width: 80px;
+  height: 4px;
+  background: linear-gradient(90deg, #4a9eff, #00ff88);
+  margin: 0 auto 30px;
+  border-radius: 2px;
+}
+
+#game-over-overlay .play-again-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 40px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #4a9eff 0%, #00d4aa 100%);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 20px rgba(74, 158, 255, 0.4);
+}
+
+#game-over-overlay .play-again-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(74, 158, 255, 0.5);
+}
+
+#game-over-overlay .play-again-button:active {
+  transform: translateY(0);
+}
+
+#game-over-overlay .play-again-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+#game-over-overlay .play-again-button .btn-icon {
+  font-size: 22px;
+}
+
+#game-over-overlay .voting-status {
+  color: #4a9eff;
+  font-size: 14px;
+  margin-top: 20px;
+  min-height: 24px;
+  animation: waitingPulse 2s ease-in-out infinite;
+}

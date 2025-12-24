@@ -360,6 +360,160 @@ export class GameState {
     );
   }
 
+  /**
+   * Transition the game to a specific phase.
+   * @param phase - Target game phase
+   * @returns New game state with the given phase
+   */
+  setGamePhase(phase: GamePhase): GameState {
+    if (this._gamePhase === phase) return this;
+
+    return new GameState(
+      this._blocks,
+      this._players,
+      this._projectiles,
+      this._cannonCooldowns,
+      this._config,
+      this._nextProjectileId,
+      phase
+    );
+  }
+
+  /**
+   * Get the count of regular (non-cannon) blocks for a player.
+   * @param playerId - ID of the player
+   * @returns Number of regular blocks the player has
+   */
+  getRegularBlockCountForPlayer(playerId: PlayerId): number {
+    let count = 0;
+    for (const block of this._blocks.values()) {
+      if (block.ownerId === playerId && block.blockType === 'regular') {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Check if there's a winner (opponent has 0 regular blocks).
+   * @returns Winner info or null if no winner yet
+   */
+  checkForWinner(): { winnerId: PlayerId; winnerNumber: PlayerNumber } | null {
+    const players = Array.from(this._players.values());
+    if (players.length !== 2) return null;
+
+    for (const player of players) {
+      const regularBlockCount = this.getRegularBlockCountForPlayer(player.id);
+      if (regularBlockCount === 0) {
+        // This player lost - find the opponent (winner)
+        const winner = players.find((p) => p.id !== player.id);
+        if (winner) {
+          return { winnerId: winner.id, winnerNumber: winner.number };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Mark a player as wanting to play again.
+   * @param playerId - ID of the player voting
+   * @returns New game state with the vote recorded
+   */
+  markPlayerWantsPlayAgain(playerId: PlayerId): GameState {
+    const player = this._players.get(playerId);
+    if (!player || player.wantsPlayAgain) return this;
+
+    const newPlayer: Player = { ...player, wantsPlayAgain: true };
+    const newPlayers = new Map(this._players);
+    newPlayers.set(playerId, newPlayer);
+
+    return new GameState(
+      this._blocks,
+      newPlayers,
+      this._projectiles,
+      this._cannonCooldowns,
+      this._config,
+      this._nextProjectileId,
+      this._gamePhase
+    );
+  }
+
+  /**
+   * Check if all players have voted to play again.
+   * @returns true if all players want to play again
+   */
+  allPlayersWantPlayAgain(): boolean {
+    if (this._players.size === 0) return false;
+
+    for (const player of this._players.values()) {
+      if (!player.wantsPlayAgain) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Get the list of player IDs who have voted to play again.
+   */
+  getPlayAgainVoters(): PlayerId[] {
+    return Array.from(this._players.values())
+      .filter((p) => p.wantsPlayAgain)
+      .map((p) => p.id);
+  }
+
+  /**
+   * Reset the game for a new round.
+   * Clears all blocks and projectiles, creates fresh blocks for existing players.
+   * Resets players' ready and wantsPlayAgain status.
+   * @returns New game state ready for a new round
+   */
+  resetForNewRound(): GameState {
+    // Start with empty blocks and projectiles
+    let newBlocks = new Map<BlockId, Block>();
+    const newProjectiles = new Map<ProjectileId, Projectile>();
+    const newCooldowns = new Map<BlockId, number>();
+
+    // Reset player states
+    const newPlayers = new Map<PlayerId, Player>();
+    for (const player of this._players.values()) {
+      const resetPlayer: Player = {
+        ...player,
+        grabbedBlockId: null,
+        isReady: !!player.isBot, // Bots stay ready, humans need to raise hand
+        wantsPlayAgain: false,
+      };
+      newPlayers.set(player.id, resetPlayer);
+    }
+
+    // Create new state with reset players
+    let newState = new GameState(
+      newBlocks,
+      newPlayers,
+      newProjectiles,
+      newCooldowns,
+      this._config,
+      1, // Reset projectile ID counter
+      'waiting'
+    );
+
+    // Create fresh blocks for each player
+    for (const player of newPlayers.values()) {
+      newBlocks = newState.createPlayerBlocks(player.id, player.number);
+      newState = new GameState(
+        newBlocks,
+        newPlayers,
+        newProjectiles,
+        newCooldowns,
+        this._config,
+        1,
+        'waiting'
+      );
+    }
+
+    return newState;
+  }
+
   // ============ Block Interaction ============
 
   /**

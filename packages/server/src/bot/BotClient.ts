@@ -257,6 +257,18 @@ export class BotClient {
         this.handleGameStarted();
         break;
 
+      case 'game_over':
+        this.handleGameOver(message);
+        break;
+
+      case 'play_again_status':
+        // Bot doesn't need to track voting status, it auto-votes
+        break;
+
+      case 'game_reset':
+        this.handleGameReset(message);
+        break;
+
       case 'error':
         logger.error('Server error', { message: message.message });
         break;
@@ -268,6 +280,68 @@ export class BotClient {
     this.gamePhase = 'playing';
     // Now start the behavior loop
     this.scheduleNextAction();
+  }
+
+  private handleGameOver(message: Extract<ServerMessage, { type: 'game_over' }>): void {
+    const isWinner = message.winnerId === this.playerId;
+    logger.info('Game over!', {
+      winnerId: message.winnerId,
+      winnerNumber: message.winnerNumber,
+      isWinner,
+    });
+
+    // Stop the behavior loop
+    this.gamePhase = 'finished';
+    if (this.actionTimer) {
+      clearTimeout(this.actionTimer);
+      this.actionTimer = null;
+    }
+    if (this.moveTimer) {
+      clearInterval(this.moveTimer);
+      this.moveTimer = null;
+    }
+
+    // Auto-vote to play again
+    logger.info('Bot automatically voting to play again');
+    this.send({ type: 'play_again_vote' });
+  }
+
+  private handleGameReset(message: Extract<ServerMessage, { type: 'game_reset' }>): void {
+    logger.info('Game reset - preparing for new round');
+
+    // Clear current state
+    this.myBlocks.clear();
+    this.opponentBlocks.clear();
+    this.allProjectiles.clear();
+    this.myCannonId = null;
+    this.opponentCannonId = null;
+    this.grabbedBlockId = null;
+    this.movementState = null;
+    this.state = 'idle';
+
+    // Process fresh blocks
+    for (const block of message.blocks) {
+      if (block.ownerId === this.playerId) {
+        this.myBlocks.set(block.id, block);
+        if (block.blockType === 'cannon') {
+          this.myCannonId = block.id;
+        }
+      } else {
+        this.opponentBlocks.set(block.id, block);
+        if (block.blockType === 'cannon') {
+          this.opponentCannonId = block.id;
+        }
+      }
+    }
+
+    // Reset to waiting phase (bot is already ready as a bot)
+    this.gamePhase = 'waiting';
+
+    logger.info('Bot ready for new round', {
+      myBlocks: this.myBlocks.size,
+      myCannonId: this.myCannonId,
+      opponentBlocks: this.opponentBlocks.size,
+    });
   }
 
   private handleOpponentJoined(message: Extract<ServerMessage, { type: 'opponent_joined' }>): void {

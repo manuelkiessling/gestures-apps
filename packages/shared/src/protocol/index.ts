@@ -67,7 +67,7 @@ export const WallGridConfigSchema = z.object({
 /**
  * Schema for game phase enumeration.
  */
-export const GamePhaseSchema = z.enum(['waiting', 'playing']);
+export const GamePhaseSchema = z.enum(['waiting', 'playing', 'finished']);
 export type GamePhase = z.infer<typeof GamePhaseSchema>;
 
 // ============ Client -> Server Messages ============
@@ -129,6 +129,13 @@ export const PlayerReadyMessage = z.object({
 });
 
 /**
+ * Player votes to play again after game ends.
+ */
+export const PlayAgainVoteMessage = z.object({
+  type: z.literal('play_again_vote'),
+});
+
+/**
  * Union of all valid client-to-server messages.
  */
 export const ClientMessage = z.discriminatedUnion('type', [
@@ -139,6 +146,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CannonFireMessage,
   BotIdentifyMessage,
   PlayerReadyMessage,
+  PlayAgainVoteMessage,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessage>;
@@ -264,6 +272,34 @@ export const GameStartedMessage = z.object({
 });
 
 /**
+ * Notification that the game is over with a winner.
+ */
+export const GameOverMessage = z.object({
+  type: z.literal('game_over'),
+  winnerId: z.string(),
+  winnerNumber: z.union([z.literal(1), z.literal(2)]),
+  reason: z.literal('blocks_destroyed'),
+});
+
+/**
+ * Play again voting status update.
+ */
+export const PlayAgainStatusMessage = z.object({
+  type: z.literal('play_again_status'),
+  votedPlayerIds: z.array(z.string()),
+  totalPlayers: z.number(),
+});
+
+/**
+ * Notification that the game is resetting for a new round.
+ * Contains fresh block positions for all players.
+ */
+export const GameResetMessage = z.object({
+  type: z.literal('game_reset'),
+  blocks: z.array(BlockSchema),
+});
+
+/**
  * Union of all valid server-to-client messages.
  */
 export const ServerMessage = z.discriminatedUnion('type', [
@@ -279,6 +315,9 @@ export const ServerMessage = z.discriminatedUnion('type', [
   BlockDestroyedMessage,
   WallHitMessage,
   GameStartedMessage,
+  GameOverMessage,
+  PlayAgainStatusMessage,
+  GameResetMessage,
   ErrorMessage,
 ]);
 

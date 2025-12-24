@@ -75,6 +75,7 @@ const messageHandlers: {
   cannon_fire: handleCannonFire,
   bot_identify: handleBotIdentify,
   player_ready: handlePlayerReady,
+  play_again_vote: handlePlayAgainVote,
 };
 
 // ============ Main Handler ============
@@ -284,6 +285,21 @@ function handlePlayerReady(
   logger.info('Player ready (hand raised)', { playerId: context.playerId });
   const newState = state.markPlayerReady(context.playerId);
   return { newState, responses: [] };
+}
+
+/**
+ * Handle play_again_vote message - player wants to play again.
+ * Note: Actual vote handling is done in GameManager.handlePlayAgainVote().
+ * This handler just validates the message format.
+ */
+function handlePlayAgainVote(
+  _message: Extract<ClientMessage, { type: 'play_again_vote' }>,
+  _context: ConnectionContext,
+  state: GameState
+): MessageHandlerResult {
+  // Actual handling done in GameManager - this is a placeholder
+  // GameManager intercepts this message type before processing
+  return { newState: state, responses: [] };
 }
 
 // ============ Helper Functions ============

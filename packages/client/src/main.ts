@@ -84,6 +84,9 @@ class Game {
       onBlockDestroyed: this.handleBlockDestroyed.bind(this),
       onWallHit: this.handleWallHit.bind(this),
       onGameStarted: this.handleGameStarted.bind(this),
+      onGameOver: this.handleGameOver.bind(this),
+      onPlayAgainStatus: this.handlePlayAgainStatus.bind(this),
+      onGameReset: this.handleGameReset.bind(this),
       onError: this.handleError.bind(this),
     });
 
@@ -179,6 +182,53 @@ class Game {
     this.gamePhase = 'playing';
     console.log('Game started!');
     this.statusDisplay.updateStatus('Game started - pinch to grab your blocks');
+  }
+
+  private handleGameOver(winnerId: string, winnerNumber: 1 | 2, _reason: string): void {
+    this.gamePhase = 'finished';
+    const isWinner = winnerId === this.playerId;
+    console.log('Game over!', { winnerId, winnerNumber, isWinner });
+
+    this.statusDisplay.showGameOverOverlay(isWinner, () => {
+      this.gameClient.sendPlayAgainVote();
+    });
+  }
+
+  private handlePlayAgainStatus(votedPlayerIds: string[], totalPlayers: number): void {
+    this.statusDisplay.updatePlayAgainStatus(votedPlayerIds.length, totalPlayers);
+  }
+
+  private handleGameReset(blocks: Block[]): void {
+    console.log('Game reset - starting new round');
+
+    // Hide game over overlay
+    this.statusDisplay.hideGameOverOverlay();
+
+    // Clear all existing blocks and projectiles
+    this.blockRenderer.clear();
+    this.interactionManager.clear();
+
+    // Re-set player and room info (clear() resets these)
+    if (this.playerId && this.playerNumber && this.room) {
+      this.blockRenderer.setPlayer(this.playerId, this.playerNumber);
+      this.blockRenderer.setRoom(this.room);
+    }
+
+    // Create fresh blocks
+    for (const blockData of blocks) {
+      this.blockRenderer.createBlock(blockData);
+    }
+
+    // Reset game phase to waiting
+    this.gamePhase = 'waiting';
+    this.playerReadySent = false;
+
+    // Show hand raise overlay again
+    this.statusDisplay.showHandRaiseOverlay();
+    const webcamVideo = document.getElementById('webcam') as HTMLVideoElement;
+    if (webcamVideo) {
+      this.statusDisplay.syncOverlayCamera(webcamVideo);
+    }
   }
 
   private handleOpponentJoined(blocks: Block[]): void {

@@ -56,8 +56,8 @@ export class GameManager {
     const deltaTime = (now - this.lastTickTime) / 1000; // Convert to seconds
     this.lastTickTime = now;
 
-    // Skip game logic if game hasn't started yet
-    if (this.state.gamePhase === 'waiting') {
+    // Skip game logic if game hasn't started yet or game is finished
+    if (this.state.gamePhase === 'waiting' || this.state.gamePhase === 'finished') {
       return;
     }
 
@@ -96,6 +96,11 @@ export class GameManager {
           position: blockInfo.position,
           color: blockInfo.color,
         });
+      }
+
+      // Check for winner after block destruction
+      if (destroyedBlocks.length > 0) {
+        this.checkAndHandleWinner();
       }
 
       // Notify clients of wall hits (for grid visualization)
@@ -237,6 +242,12 @@ export class GameManager {
       return;
     }
 
+    // Handle play_again_vote separately
+    if (message.type === 'play_again_vote') {
+      this.handlePlayAgainVote(connection.playerId);
+      return;
+    }
+
     const context: ConnectionContext = {
       ws,
       playerId: connection.playerId,
@@ -278,6 +289,87 @@ export class GameManager {
       logger.info('All humans ready, starting game!');
       this.state = this.state.startGame();
       this.broadcastToAll({ type: 'game_started' });
+    }
+  }
+
+  /**
+   * Check if there's a winner and handle game over.
+   */
+  private checkAndHandleWinner(): void {
+    const winner = this.state.checkForWinner();
+    if (!winner) return;
+
+    logger.info('Game over!', { winnerId: winner.winnerId, winnerNumber: winner.winnerNumber });
+
+    // Transition to finished phase
+    this.state = this.state.setGamePhase('finished');
+
+    // Broadcast game over to all players
+    this.broadcastToAll({
+      type: 'game_over',
+      winnerId: winner.winnerId,
+      winnerNumber: winner.winnerNumber,
+      reason: 'blocks_destroyed',
+    });
+  }
+
+  /**
+   * Handle a play again vote from a player.
+   * @param playerId - ID of the player voting
+   */
+  handlePlayAgainVote(playerId: PlayerId): void {
+    if (this.state.gamePhase !== 'finished') {
+      logger.warn('Play again vote ignored - game not finished', { playerId });
+      return;
+    }
+
+    // Record the vote
+    this.state = this.state.markPlayerWantsPlayAgain(playerId);
+
+    logger.info('Player voted to play again', {
+      playerId,
+      voters: this.state.getPlayAgainVoters(),
+      totalPlayers: this.state.getPlayerCount(),
+    });
+
+    // Broadcast vote status to all players
+    this.broadcastToAll({
+      type: 'play_again_status',
+      votedPlayerIds: this.state.getPlayAgainVoters(),
+      totalPlayers: this.state.getPlayerCount(),
+    });
+
+    // Check if all players want to play again
+    if (this.state.allPlayersWantPlayAgain()) {
+      this.resetGame();
+    }
+  }
+
+  /**
+   * Reset the game for a new round.
+   */
+  private resetGame(): void {
+    logger.info('All players voted to play again - resetting game');
+
+    // Reset game state
+    this.state = this.state.resetForNewRound();
+
+    // Broadcast reset with fresh block positions
+    this.broadcastToAll({
+      type: 'game_reset',
+      blocks: this.state.getBlocksArray(),
+    });
+  }
+
+  /**
+   * Send a message to a specific player by their ID.
+   */
+  sendToPlayer(playerId: PlayerId, message: ServerMessage): void {
+    for (const [ws, connection] of this.connections) {
+      if (connection.playerId === playerId) {
+        sendMessage(ws, message);
+        break;
+      }
     }
   }
 

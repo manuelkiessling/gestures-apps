@@ -36,13 +36,17 @@ export {
   CannonFireMessage,
   ClientMessage,
   ErrorMessage,
+  GameOverMessage,
   // Game phase
   GamePhaseSchema,
+  GameResetMessage,
   GameStartedMessage,
   isMessageType,
   JoinGameMessage,
   OpponentJoinedMessage,
   OpponentLeftMessage,
+  PlayAgainStatusMessage,
+  PlayAgainVoteMessage,
   PlayerReadyMessage,
   // Schemas
   PositionSchema,
