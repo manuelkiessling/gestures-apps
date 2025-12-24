@@ -28,6 +28,7 @@ export class DockerSpawner {
     const args = [
       'run',
       '-d',
+      '--rm', // Auto-remove container when it exits
       '--name',
       containerName,
       '--network',

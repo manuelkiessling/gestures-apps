@@ -42,6 +42,9 @@ describe('DockerSpawner', () => {
       expect(args[0]).toBe('/test/wrapper.sh');
       expect(args[1]).toBe('run');
 
+      // Check auto-remove flag (container cleans up on exit)
+      expect(args).toContain('--rm');
+
       // Check container name
       expect(args).toContain('--name');
       const nameIndex = args.indexOf('--name');
