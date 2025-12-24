@@ -19,7 +19,7 @@ export {
   POSITION_SEND_THROTTLE_MS,
   PROJECTILE_COLOR,
 } from './constants.js';
-
+export type { GamePhase } from './protocol/index.js';
 // Protocol
 export {
   BlockDestroyedMessage,
@@ -31,14 +31,19 @@ export {
   BlockReleaseMessage,
   BlockSchema,
   BlockTypeSchema,
+  // Client messages
+  BotIdentifyMessage,
   CannonFireMessage,
   ClientMessage,
   ErrorMessage,
+  // Game phase
+  GamePhaseSchema,
+  GameStartedMessage,
   isMessageType,
-  // Client messages
   JoinGameMessage,
   OpponentJoinedMessage,
   OpponentLeftMessage,
+  PlayerReadyMessage,
   // Schemas
   PositionSchema,
   ProjectileDestroyedMessage,

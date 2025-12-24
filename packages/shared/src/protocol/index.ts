@@ -64,6 +64,12 @@ export const WallGridConfigSchema = z.object({
   highlightIntensity: z.number(),
 });
 
+/**
+ * Schema for game phase enumeration.
+ */
+export const GamePhaseSchema = z.enum(['waiting', 'playing']);
+export type GamePhase = z.infer<typeof GamePhaseSchema>;
+
 // ============ Client -> Server Messages ============
 
 /**
@@ -107,6 +113,22 @@ export const CannonFireMessage = z.object({
 });
 
 /**
+ * Bot identifies itself to the server.
+ * Sent by bot clients after receiving welcome message.
+ */
+export const BotIdentifyMessage = z.object({
+  type: z.literal('bot_identify'),
+});
+
+/**
+ * Human player signals they are ready (first hand tracking occurred).
+ * Sent by human clients after first hand raise detection.
+ */
+export const PlayerReadyMessage = z.object({
+  type: z.literal('player_ready'),
+});
+
+/**
  * Union of all valid client-to-server messages.
  */
 export const ClientMessage = z.discriminatedUnion('type', [
@@ -115,6 +137,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   BlockMoveMessage,
   BlockReleaseMessage,
   CannonFireMessage,
+  BotIdentifyMessage,
+  PlayerReadyMessage,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessage>;
@@ -134,6 +158,7 @@ export const WelcomeMessage = z.object({
   cameraDistance: z.number(),
   wallGrid: WallGridConfigSchema,
   projectileSize: z.number(),
+  gamePhase: GamePhaseSchema,
 });
 
 /**
@@ -231,6 +256,14 @@ export const WallHitMessage = z.object({
 });
 
 /**
+ * Notification that the game has started (all humans ready).
+ * Broadcast to all players when game transitions from waiting to playing.
+ */
+export const GameStartedMessage = z.object({
+  type: z.literal('game_started'),
+});
+
+/**
  * Union of all valid server-to-client messages.
  */
 export const ServerMessage = z.discriminatedUnion('type', [
@@ -245,6 +278,7 @@ export const ServerMessage = z.discriminatedUnion('type', [
   ProjectileDestroyedMessage,
   BlockDestroyedMessage,
   WallHitMessage,
+  GameStartedMessage,
   ErrorMessage,
 ]);
 

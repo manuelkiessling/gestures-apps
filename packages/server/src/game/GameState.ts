@@ -25,6 +25,7 @@ import {
   DEFAULT_GAME_CONFIG,
   type DestroyedBlockInfo,
   type GameConfig,
+  type GamePhase,
   getPlayerSpawnZ,
   type Player,
   type PlayerId,
@@ -45,7 +46,8 @@ export class GameState {
     private readonly _projectiles: ReadonlyMap<ProjectileId, Projectile>,
     private readonly _cannonCooldowns: ReadonlyMap<BlockId, number>,
     private readonly _config: GameConfig,
-    private readonly _nextProjectileId: number
+    private readonly _nextProjectileId: number,
+    private readonly _gamePhase: GamePhase = 'waiting'
   ) {}
 
   // ============ Static Constructors ============
@@ -55,7 +57,7 @@ export class GameState {
    * @param config - Game configuration (defaults to DEFAULT_GAME_CONFIG)
    */
   static create(config: GameConfig = DEFAULT_GAME_CONFIG): GameState {
-    return new GameState(new Map(), new Map(), new Map(), new Map(), config, 1);
+    return new GameState(new Map(), new Map(), new Map(), new Map(), config, 1, 'waiting');
   }
 
   // ============ Getters ============
@@ -78,6 +80,11 @@ export class GameState {
   /** Game configuration */
   get config(): GameConfig {
     return this._config;
+  }
+
+  /** Current game phase */
+  get gamePhase(): GamePhase {
+    return this._gamePhase;
   }
 
   /** Get a specific block by ID */
@@ -163,6 +170,8 @@ export class GameState {
       id: playerId,
       number: playerNumber,
       grabbedBlockId: null,
+      isBot: false,
+      isReady: false,
     };
 
     const newPlayers = new Map(this._players);
@@ -177,7 +186,8 @@ export class GameState {
       this._projectiles,
       this._cannonCooldowns,
       this._config,
-      this._nextProjectileId
+      this._nextProjectileId,
+      this._gamePhase
     );
   }
 
@@ -264,7 +274,89 @@ export class GameState {
       newProjectiles,
       this._cannonCooldowns,
       this._config,
-      this._nextProjectileId
+      this._nextProjectileId,
+      this._gamePhase
+    );
+  }
+
+  /**
+   * Mark a player as a bot.
+   * @param playerId - ID of the player to mark as bot
+   * @returns New game state with the player marked as bot
+   */
+  markPlayerAsBot(playerId: PlayerId): GameState {
+    const player = this._players.get(playerId);
+    if (!player) return this;
+
+    const newPlayer: Player = { ...player, isBot: true, isReady: true };
+    const newPlayers = new Map(this._players);
+    newPlayers.set(playerId, newPlayer);
+
+    return new GameState(
+      this._blocks,
+      newPlayers,
+      this._projectiles,
+      this._cannonCooldowns,
+      this._config,
+      this._nextProjectileId,
+      this._gamePhase
+    );
+  }
+
+  /**
+   * Mark a player as ready (they raised their hand).
+   * @param playerId - ID of the player to mark as ready
+   * @returns New game state with the player marked as ready
+   */
+  markPlayerReady(playerId: PlayerId): GameState {
+    const player = this._players.get(playerId);
+    if (!player || player.isReady) return this;
+
+    const newPlayer: Player = { ...player, isReady: true };
+    const newPlayers = new Map(this._players);
+    newPlayers.set(playerId, newPlayer);
+
+    return new GameState(
+      this._blocks,
+      newPlayers,
+      this._projectiles,
+      this._cannonCooldowns,
+      this._config,
+      this._nextProjectileId,
+      this._gamePhase
+    );
+  }
+
+  /**
+   * Check if all human players are ready.
+   * @returns true if all non-bot players have isReady === true
+   */
+  areAllHumansReady(): boolean {
+    for (const player of this._players.values()) {
+      if (!player.isBot && !player.isReady) {
+        return false;
+      }
+    }
+    // At least one human must be connected
+    const hasHuman = Array.from(this._players.values()).some((p) => !p.isBot);
+    return hasHuman;
+  }
+
+  /**
+   * Transition the game to the playing phase.
+   * @returns New game state with playing phase
+   */
+  startGame(): GameState {
+    if (this._gamePhase === 'playing') return this;
+
+    return new GameState(
+      this._blocks,
+      this._players,
+      this._projectiles,
+      this._cannonCooldowns,
+      this._config,
+      this._nextProjectileId,
+      'playing'
     );
   }
 
@@ -294,7 +386,8 @@ export class GameState {
       this._projectiles,
       this._cannonCooldowns,
       this._config,
-      this._nextProjectileId
+      this._nextProjectileId,
+      this._gamePhase
     );
   }
 
@@ -318,7 +411,8 @@ export class GameState {
       this._projectiles,
       this._cannonCooldowns,
       this._config,
-      this._nextProjectileId
+      this._nextProjectileId,
+      this._gamePhase
     );
   }
 
@@ -377,7 +471,8 @@ export class GameState {
       this._projectiles,
       this._cannonCooldowns,
       this._config,
-      this._nextProjectileId
+      this._nextProjectileId,
+      this._gamePhase
     );
 
     return { state: newState, pushedBlocks };
@@ -417,7 +512,8 @@ export class GameState {
       newProjectiles,
       result.cooldowns,
       this._config,
-      result.nextProjectileId
+      result.nextProjectileId,
+      this._gamePhase
     );
 
     return { state: newState, projectile: result.projectile };
@@ -450,7 +546,8 @@ export class GameState {
       newProjectiles,
       result.cooldowns,
       this._config,
-      result.nextProjectileId
+      result.nextProjectileId,
+      this._gamePhase
     );
 
     return { state: newState, projectile: result.projectile };
@@ -480,7 +577,8 @@ export class GameState {
       result.projectiles,
       this._cannonCooldowns,
       this._config,
-      this._nextProjectileId
+      this._nextProjectileId,
+      this._gamePhase
     );
 
     return {
@@ -510,7 +608,8 @@ export class GameState {
       newProjectiles,
       this._cannonCooldowns,
       this._config,
-      this._nextProjectileId
+      this._nextProjectileId,
+      this._gamePhase
     );
   }
 }

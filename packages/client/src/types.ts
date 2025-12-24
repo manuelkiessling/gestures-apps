@@ -2,7 +2,7 @@
  * @fileoverview Client-specific type definitions.
  */
 
-import type { Block, Projectile, RoomBounds, WallGridConfig } from '@block-game/shared';
+import type { Block, GamePhase, Projectile, RoomBounds, WallGridConfig } from '@block-game/shared';
 import type * as THREE from 'three';
 
 // Re-export shared types for convenience
@@ -10,6 +10,7 @@ export type {
   Block,
   BlockId,
   BlockType,
+  GamePhase,
   PlayerId,
   PlayerNumber,
   Position,
@@ -95,6 +96,7 @@ export interface GameInitData {
   cameraDistance: number;
   wallGrid: WallGridConfig;
   projectileSize: number;
+  gamePhase: GamePhase;
 }
 
 /**

@@ -19,6 +19,7 @@ export type {
   BlockId,
   BlockType,
   DestroyedBlockInfo,
+  GamePhase,
   Player,
   PlayerId,
   PlayerNumber,

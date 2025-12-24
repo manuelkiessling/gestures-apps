@@ -47,6 +47,8 @@ export interface GameClientEvents {
   onBlockDestroyed?: (blockId: string, position: Position, color: number) => void;
   /** Called when a projectile hits a wall */
   onWallHit?: (position: Position, wallSide: 'minZ' | 'maxZ') => void;
+  /** Called when game starts (all humans ready) */
+  onGameStarted?: () => void;
   /** Called on server error */
   onError?: (message: string) => void;
 }
@@ -149,6 +151,13 @@ export class GameClient {
     this.send({ type: 'cannon_fire', cannonId });
   }
 
+  /**
+   * Send player ready message (first hand tracking occurred).
+   */
+  sendPlayerReady(): void {
+    this.send({ type: 'player_ready' });
+  }
+
   // ============ Private Methods ============
 
   private setConnectionState(state: ConnectionState): void {
@@ -174,6 +183,7 @@ export class GameClient {
           cameraDistance: message.cameraDistance,
           wallGrid: message.wallGrid,
           projectileSize: message.projectileSize,
+          gamePhase: message.gamePhase,
         });
         break;
 
@@ -215,6 +225,10 @@ export class GameClient {
 
       case 'wall_hit':
         this.events.onWallHit?.(message.position, message.wallSide);
+        break;
+
+      case 'game_started':
+        this.events.onGameStarted?.();
         break;
 
       case 'error':

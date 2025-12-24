@@ -73,6 +73,8 @@ const messageHandlers: {
   block_move: handleBlockMove,
   block_release: handleBlockRelease,
   cannon_fire: handleCannonFire,
+  bot_identify: handleBotIdentify,
+  player_ready: handlePlayerReady,
 };
 
 // ============ Main Handler ============
@@ -117,6 +119,11 @@ function handleBlockGrab(
   context: ConnectionContext,
   state: GameState
 ): MessageHandlerResult {
+  // Block interactions are not allowed until game starts
+  if (state.gamePhase === 'waiting') {
+    return { newState: state, responses: [] };
+  }
+
   const { blockId } = message;
   const newState = state.grabBlock(context.playerId, blockId);
 
@@ -148,6 +155,11 @@ function handleBlockMove(
   context: ConnectionContext,
   state: GameState
 ): MessageHandlerResult {
+  // Block interactions are not allowed until game starts
+  if (state.gamePhase === 'waiting') {
+    return { newState: state, responses: [] };
+  }
+
   const { blockId, position } = message;
 
   // Validate ownership and grab state
@@ -182,6 +194,11 @@ function handleBlockRelease(
   context: ConnectionContext,
   state: GameState
 ): MessageHandlerResult {
+  // Block interactions are not allowed until game starts
+  if (state.gamePhase === 'waiting') {
+    return { newState: state, responses: [] };
+  }
+
   const { blockId } = message;
   const player = state.getPlayer(context.playerId);
 
@@ -214,6 +231,11 @@ function handleCannonFire(
   context: ConnectionContext,
   state: GameState
 ): MessageHandlerResult {
+  // Cannon firing is not allowed until game starts
+  if (state.gamePhase === 'waiting') {
+    return { newState: state, responses: [] };
+  }
+
   const { cannonId } = message;
   const { state: newState, projectile } = state.fireCannon(context.playerId, cannonId);
 
@@ -234,6 +256,34 @@ function handleCannonFire(
       },
     ],
   };
+}
+
+/**
+ * Handle bot_identify message - bot identifies itself.
+ * Marks the player as a bot (and automatically ready).
+ */
+function handleBotIdentify(
+  _message: Extract<ClientMessage, { type: 'bot_identify' }>,
+  context: ConnectionContext,
+  state: GameState
+): MessageHandlerResult {
+  logger.info('Bot identified', { playerId: context.playerId });
+  const newState = state.markPlayerAsBot(context.playerId);
+  return { newState, responses: [] };
+}
+
+/**
+ * Handle player_ready message - human player raised their hand.
+ * Marks the player as ready. GameManager will check if game should start.
+ */
+function handlePlayerReady(
+  _message: Extract<ClientMessage, { type: 'player_ready' }>,
+  context: ConnectionContext,
+  state: GameState
+): MessageHandlerResult {
+  logger.info('Player ready (hand raised)', { playerId: context.playerId });
+  const newState = state.markPlayerReady(context.playerId);
+  return { newState, responses: [] };
 }
 
 // ============ Helper Functions ============

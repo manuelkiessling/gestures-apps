@@ -56,6 +56,11 @@ export class GameManager {
     const deltaTime = (now - this.lastTickTime) / 1000; // Convert to seconds
     this.lastTickTime = now;
 
+    // Skip game logic if game hasn't started yet
+    if (this.state.gamePhase === 'waiting') {
+      return;
+    }
+
     // Auto-fire cannons if enabled
     if (CANNON_AUTO_FIRE_INTERVAL_MS > 0) {
       if (now - this.lastAutoFireTime >= CANNON_AUTO_FIRE_INTERVAL_MS) {
@@ -176,6 +181,7 @@ export class GameManager {
       cameraDistance: CAMERA_DISTANCE,
       wallGrid: WALL_GRID_CONFIG,
       projectileSize: PROJECTILE_SIZE,
+      gamePhase: this.state.gamePhase,
     });
 
     // Get the new player's blocks to send to existing players
@@ -254,6 +260,24 @@ export class GameManager {
           this.broadcastToAll(response.message);
           break;
       }
+    }
+
+    // Check if game should start after processing the message
+    this.checkAndStartGame();
+  }
+
+  /**
+   * Check if all human players are ready and start the game if so.
+   */
+  private checkAndStartGame(): void {
+    if (this.state.gamePhase === 'playing') {
+      return; // Already playing
+    }
+
+    if (this.state.areAllHumansReady()) {
+      logger.info('All humans ready, starting game!');
+      this.state = this.state.startGame();
+      this.broadcastToAll({ type: 'game_started' });
     }
   }
 

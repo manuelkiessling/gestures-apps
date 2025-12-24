@@ -4,7 +4,14 @@
  * Tracks full game state for AI decision-making.
  */
 
-import type { Block, Position, Projectile, RoomBounds, ServerMessage } from '@block-game/shared';
+import type {
+  Block,
+  GamePhase,
+  Position,
+  Projectile,
+  RoomBounds,
+  ServerMessage,
+} from '@block-game/shared';
 import WebSocket from 'ws';
 import { logger } from '../utils/logger.js';
 import { type AIDerivedParams, type BotGameState, decideAction, deriveAIParams } from './BotAI.js';
@@ -75,6 +82,9 @@ export class BotClient {
   // AI parameters (derived from difficulty)
   private readonly aiParams: AIDerivedParams;
   private lastAIActionTime = 0;
+
+  // Game phase tracking
+  private gamePhase: GamePhase = 'waiting';
 
   private actionTimer: ReturnType<typeof setTimeout> | null = null;
   private moveTimer: ReturnType<typeof setInterval> | null = null;
@@ -150,6 +160,7 @@ export class BotClient {
     this.opponentBlocks.clear();
     this.opponentCannonId = null;
     this.allProjectiles.clear();
+    this.gamePhase = 'waiting';
   }
 
   // ============ State Getters for AI ============
@@ -242,10 +253,21 @@ export class BotClient {
         // Visual effect only, no state tracking needed
         break;
 
+      case 'game_started':
+        this.handleGameStarted();
+        break;
+
       case 'error':
         logger.error('Server error', { message: message.message });
         break;
     }
+  }
+
+  private handleGameStarted(): void {
+    logger.info('Game started! Bot beginning behavior loop');
+    this.gamePhase = 'playing';
+    // Now start the behavior loop
+    this.scheduleNextAction();
   }
 
   private handleOpponentJoined(message: Extract<ServerMessage, { type: 'opponent_joined' }>): void {
@@ -369,11 +391,13 @@ export class BotClient {
     this.playerId = message.playerId;
     this.playerNumber = message.playerNumber;
     this.room = message.room;
+    this.gamePhase = message.gamePhase;
 
     logger.info('Bot joined as player', {
       playerId: this.playerId,
       playerNumber: message.playerNumber,
       room: this.room,
+      gamePhase: this.gamePhase,
     });
 
     // Store blocks separated by owner
@@ -404,8 +428,18 @@ export class BotClient {
       opponentCannonId: this.opponentCannonId,
     });
 
-    // Start the behavior loop
-    this.scheduleNextAction();
+    // Identify as bot to the server
+    this.send({ type: 'bot_identify' });
+    logger.info('Bot identified itself to server');
+
+    // If game is already playing (reconnect scenario), start behavior
+    // Otherwise wait for game_started message
+    if (this.gamePhase === 'playing') {
+      logger.info('Game already in progress, starting behavior loop');
+      this.scheduleNextAction();
+    } else {
+      logger.info('Waiting for game to start (human player must raise hand)');
+    }
   }
 
   private send(message: Record<string, unknown>): void {

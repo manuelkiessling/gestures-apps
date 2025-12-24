@@ -79,6 +79,10 @@ export interface Player {
   readonly id: PlayerId;
   readonly number: PlayerNumber;
   readonly grabbedBlockId: BlockId | null;
+  /** Whether this player is a bot (server-side only) */
+  readonly isBot?: boolean;
+  /** Whether this player has raised their hand at least once (server-side only) */
+  readonly isReady?: boolean;
 }
 
 /**

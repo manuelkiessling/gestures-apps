@@ -11,6 +11,7 @@ import type {
   Block,
   ConnectionState,
   GameInitData,
+  GamePhase,
   HandLandmarks,
   Position,
   RoomBounds,
@@ -40,6 +41,8 @@ class Game {
   private projectileSize = 0.3;
   private opponentConnected = false;
   private lastFrameTime = 0;
+  private gamePhase: GamePhase = 'waiting';
+  private playerReadySent = false;
 
   // Current hand landmarks for interaction processing
   private currentLandmarks: HandLandmarks | null = null;
@@ -80,6 +83,7 @@ class Game {
       onProjectileDestroyed: this.handleProjectileDestroyed.bind(this),
       onBlockDestroyed: this.handleBlockDestroyed.bind(this),
       onWallHit: this.handleWallHit.bind(this),
+      onGameStarted: this.handleGameStarted.bind(this),
       onError: this.handleError.bind(this),
     });
 
@@ -140,6 +144,7 @@ class Game {
     this.playerNumber = data.playerNumber;
     this.room = data.room;
     this.projectileSize = data.projectileSize;
+    this.gamePhase = data.gamePhase;
 
     // Configure systems
     this.blockRenderer.setPlayer(data.playerId, data.playerNumber);
@@ -168,6 +173,12 @@ class Game {
 
     // Start hand tracking
     this.initHandTracking();
+  }
+
+  private handleGameStarted(): void {
+    this.gamePhase = 'playing';
+    console.log('Game started!');
+    this.statusDisplay.updateStatus('Game started - pinch to grab your blocks');
   }
 
   private handleOpponentJoined(blocks: Block[]): void {
@@ -298,6 +309,16 @@ class Game {
       return;
     }
 
+    // Send player_ready on first hand detection
+    if (!this.playerReadySent) {
+      this.playerReadySent = true;
+      this.gameClient.sendPlayerReady();
+      console.log('Hand detected - player ready sent');
+      if (this.gamePhase === 'waiting') {
+        this.statusDisplay.updateStatus('Waiting for game to start...');
+      }
+    }
+
     // Convert landmarks to 3D and update visualization
     const positions3D = this.gestureDetector.landmarksTo3D(landmarks);
     this.handVisualizer.update(positions3D);
@@ -312,8 +333,8 @@ class Game {
     const deltaTime = elapsed - this.lastFrameTime;
     this.lastFrameTime = elapsed;
 
-    // Process interaction
-    if (this.playerId && this.currentLandmarks) {
+    // Process interaction only when game is playing
+    if (this.playerId && this.currentLandmarks && this.gamePhase === 'playing') {
       const pinchPoint = this.gestureDetector.getPinchPoint(this.currentLandmarks);
       const isPinching = this.gestureDetector.isPinching(this.currentLandmarks);
       const status = this.interactionManager.processInteraction(pinchPoint, isPinching);
@@ -337,6 +358,8 @@ class Game {
     this.room = null;
     this.opponentConnected = false;
     this.currentLandmarks = null;
+    this.gamePhase = 'waiting';
+    this.playerReadySent = false;
 
     this.blockRenderer.clear();
     this.interactionManager.clear();
