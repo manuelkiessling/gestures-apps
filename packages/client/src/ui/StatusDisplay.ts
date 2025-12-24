@@ -32,6 +32,7 @@ export class StatusDisplay {
   private readonly gameOverSubtitle: HTMLElement;
   private readonly playAgainBtn: HTMLButtonElement;
   private readonly votingStatus: HTMLElement;
+  private readonly returnToLobbyLink: HTMLAnchorElement;
 
   constructor() {
     this.statusElement = getRequiredElement('status');
@@ -47,6 +48,7 @@ export class StatusDisplay {
     this.gameOverSubtitle = getRequiredElement('game-over-subtitle');
     this.playAgainBtn = getRequiredElement('play-again-btn') as HTMLButtonElement;
     this.votingStatus = getRequiredElement('voting-status');
+    this.returnToLobbyLink = getRequiredElement('return-to-lobby') as HTMLAnchorElement;
   }
 
   /**
@@ -164,6 +166,19 @@ export class StatusDisplay {
   private playAgainClickHandler: (() => void) | null = null;
 
   /**
+   * Get the lobby URL if running in a game session, or null if not applicable.
+   */
+  private getLobbyUrl(): string | null {
+    const hostname = window.location.hostname;
+    // Match game session pattern: {sessionId}-hands-blocks-cannons.dx-tooling.org
+    const sessionPattern = /^[a-z0-9]+-hands-blocks-cannons\.dx-tooling\.org$/;
+    if (sessionPattern.test(hostname)) {
+      return 'https://hands-blocks-cannons.dx-tooling.org';
+    }
+    return null;
+  }
+
+  /**
    * Show the game over overlay.
    * @param isWinner - Whether the local player won
    * @param onPlayAgain - Callback when play again button is clicked
@@ -198,6 +213,15 @@ export class StatusDisplay {
       onPlayAgain();
     };
     this.playAgainBtn.addEventListener('click', this.playAgainClickHandler);
+
+    // Show return to lobby link if in a game session
+    const lobbyUrl = this.getLobbyUrl();
+    if (lobbyUrl) {
+      this.returnToLobbyLink.href = lobbyUrl;
+      this.returnToLobbyLink.classList.remove('hidden');
+    } else {
+      this.returnToLobbyLink.classList.add('hidden');
+    }
 
     this.gameOverOverlay.classList.remove('hidden');
     this.gameOverOverlay.classList.remove('fade-out');

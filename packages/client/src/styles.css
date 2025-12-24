@@ -469,3 +469,34 @@ body {
   min-height: 24px;
   animation: waitingPulse 2s ease-in-out infinite;
 }
+
+#game-over-overlay .return-to-lobby {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #8888aa;
+  background: transparent;
+  border: 1px solid #3a3a5a;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+#game-over-overlay .return-to-lobby:hover {
+  color: #fff;
+  border-color: #5a5a7a;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+#game-over-overlay .return-to-lobby.hidden {
+  display: none;
+}
+
+#game-over-overlay .return-to-lobby .btn-icon {
+  font-size: 18px;
+}
