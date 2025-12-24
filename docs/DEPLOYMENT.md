@@ -41,34 +41,17 @@ git clone https://github.com/your-org/cam-gesture-experiment.git hands-blocks-ca
 cd hands-blocks-cannons
 ```
 
-### 2. Configure Sudoers
+### 2. Make Wrapper Script Executable
 
-The lobby application needs to spawn Docker containers. This is done through a restricted wrapper script that requires sudo privileges.
-
-```bash
-# Install the sudoers entry
-sudo install -o root -g root -m 0440 \
-  docs/infrastructure/etc/sudoers.d/hbc-docker-wrapper \
-  /etc/sudoers.d/hbc-docker-wrapper
-
-# Verify the sudoers syntax
-sudo visudo -c
-```
-
-The default sudoers entry assumes the project is at `/var/www/hands-blocks-cannons`. If you installed elsewhere, edit the file:
-
-```bash
-sudo visudo -f /etc/sudoers.d/hbc-docker-wrapper
-# Change the path to match your installation
-```
-
-### 3. Make Wrapper Script Executable
+The lobby container uses a restricted wrapper script to spawn Docker containers. The script is mounted into the container and executed directly (no sudo needed, as the container has access to the Docker socket).
 
 ```bash
 chmod +x bin/docker-cli-wrapper.sh
 ```
 
-### 4. Verify Traefik Network
+> **Note:** The code explicitly calls the script with `bash`, so it will work even if permissions aren't set correctly, but it's still good practice to make it executable.
+
+### 3. Verify Traefik Network
 
 Ensure the `outermost_router` network exists:
 
@@ -79,21 +62,21 @@ docker network ls | grep outermost_router
 docker network create outermost_router
 ```
 
-### 5. Build the Game Session Image
+### 4. Build the Game Session Image
 
 This image is used by the lobby to spawn game containers:
 
 ```bash
-docker build -t hbc-game-session ./docker/game-session
+docker build -t hbc-game-session -f docker/game-session/Dockerfile .
 ```
 
-### 6. Start the Lobby
+### 5. Start the Lobby
 
 ```bash
 docker compose up --build -d
 ```
 
-### 7. Verify Deployment
+### 6. Verify Deployment
 
 Check that the lobby container is running:
 
@@ -103,6 +86,71 @@ docker compose logs -f lobby
 ```
 
 Visit `https://hands-blocks-cannons.dx-tooling.org` in your browser.
+
+## Manual Testing: Launching Game Session Containers
+
+For testing purposes, you can manually launch a game session container. This is useful for debugging or testing without going through the lobby UI.
+
+### Example: Launch a test session at `test-hands-blocks-cannons.dx-tooling.org`
+
+**From the Docker host (using `docker run` directly):**
+
+```bash
+docker run -d \
+  --name hbc-session-test \
+  --network outermost_router \
+  -e SESSION_ID=test \
+  -e WITH_BOT=true \
+  -e BOT_DIFFICULTY=0.5 \
+  -l traefik.enable=true \
+  -l outermost_router.enable=true \
+  -l traefik.docker.network=outermost_router \
+  -l 'traefik.http.routers.hbc-test.rule=Host(`test-hands-blocks-cannons.dx-tooling.org`)' \
+  -l traefik.http.routers.hbc-test.entrypoints=websecure \
+  -l traefik.http.routers.hbc-test.tls=true \
+  -l traefik.http.services.hbc-test.loadbalancer.server.port=80 \
+  hbc-game-session
+```
+
+**From inside the lobby container (using the wrapper script):**
+
+```bash
+# First, exec into the lobby container
+docker exec -it hbc-lobby bash
+
+# Then run the wrapper script
+bash /app/bin/docker-cli-wrapper.sh run \
+  -d \
+  --name hbc-session-test \
+  --network outermost_router \
+  -e SESSION_ID=test \
+  -e WITH_BOT=true \
+  -e BOT_DIFFICULTY=0.5 \
+  -l traefik.enable=true \
+  -l outermost_router.enable=true \
+  -l traefik.docker.network=outermost_router \
+  -l 'traefik.http.routers.hbc-test.rule=Host(`test-hands-blocks-cannons.dx-tooling.org`)' \
+  -l traefik.http.routers.hbc-test.entrypoints=websecure \
+  -l traefik.http.routers.hbc-test.tls=true \
+  -l traefik.http.services.hbc-test.loadbalancer.server.port=80 \
+  hbc-game-session
+```
+
+**Cleanup:**
+
+To stop and remove the test container:
+
+```bash
+# From host
+docker stop hbc-session-test
+docker rm hbc-session-test
+
+# Or from inside lobby container using wrapper
+docker exec hbc-lobby /app/bin/docker-cli-wrapper.sh stop hbc-session-test
+docker exec hbc-lobby /app/bin/docker-cli-wrapper.sh rm hbc-session-test
+```
+
+> **Note:** Replace `test` with your desired session ID. The hostname pattern is `{sessionId}-hands-blocks-cannons.dx-tooling.org`, and the container name must match `hbc-session-{sessionId}`.
 
 ## Updating
 
@@ -151,13 +199,18 @@ After deployment, verify everything works:
 
 ### Game Session Container Fails to Start
 
-1. Check the Docker wrapper permissions:
+1. Check the Docker socket is accessible from the lobby container:
    ```bash
-   # From inside the lobby container or as root
-   sudo -n /var/www/hands-blocks-cannons/bin/docker-cli-wrapper.sh ps
+   # From inside the lobby container
+   docker exec hbc-lobby ls -la /var/run/docker.sock
+   # Should show the socket file is readable
    ```
 
-2. If "sudo: a password is required", the sudoers entry is not configured correctly.
+2. Test Docker access from inside the container:
+   ```bash
+   docker exec hbc-lobby /app/bin/docker-cli-wrapper.sh ps
+   # Should list running game session containers
+   ```
 
 3. Check the game session image exists:
    ```bash
@@ -222,7 +275,7 @@ After deployment, verify everything works:
 │         ▼                                                       │
 │  ┌─────────────┐                                                │
 │  │ docker-cli- │                                                │
-│  │ wrapper.sh  │ ◄── sudo (restricted commands only)            │
+│  │ wrapper.sh  │ ◄── via Docker socket (restricted commands)   │
 │  └─────────────┘                                                │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -233,5 +286,7 @@ After deployment, verify everything works:
 - The `docker-cli-wrapper.sh` script restricts Docker access to only the commands needed
 - Container names must match `hbc-session-*` pattern
 - Only the `hbc-game-session` image can be run
-- The sudoers entry only allows the wrapper script, not direct Docker access
+- The wrapper script validates all commands before execution (this is the primary security mechanism)
 - Game sessions are isolated in their own containers
+- The lobby container runs as root to access the Docker socket, but the wrapper script provides command restrictions
+- The Docker socket requires write access to create/stop/remove containers, so it's mounted without `:ro` flag

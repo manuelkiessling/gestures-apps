@@ -111,10 +111,14 @@ export class DockerSpawner {
 
   /**
    * Execute a docker command via the wrapper script.
+   * The wrapper script is executed directly (no sudo) since the container
+   * has access to the Docker socket mounted from the host.
+   * We explicitly use bash to ensure the script executes even if permissions
+   * aren't set correctly on the mounted volume.
    */
   private async exec(args: string[]): Promise<{ stdout: string; stderr: string }> {
     try {
-      return await execFileAsync('sudo', ['-n', this.wrapperPath, ...args]);
+      return await execFileAsync('bash', [this.wrapperPath, ...args]);
     } catch (err) {
       if (err instanceof Error && 'stderr' in err) {
         throw new Error(`Docker command failed: ${(err as { stderr: string }).stderr}`);

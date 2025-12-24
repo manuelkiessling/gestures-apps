@@ -26,7 +26,14 @@ export function createServer(): Express {
   app.use(express.static(publicDir));
 
   // SPA fallback - serve index.html for all non-API routes
-  app.get('*', (_req, res) => {
+  // Use middleware instead of route to avoid Express 5 path-to-regexp restrictions
+  app.use((req, res, next) => {
+    // Skip if this is an API route
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    // Skip if static file was found (express.static already handled it)
+    // This middleware only runs if express.static didn't find a file
     res.sendFile(join(publicDir, 'index.html'));
   });
 

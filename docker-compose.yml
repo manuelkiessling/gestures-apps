@@ -1,17 +1,16 @@
 # Docker Compose for Hands, Blocks & Cannons
-# 
+#
 # This file is for PRODUCTION deployment on the Ubuntu server.
 # The lobby container is started here; game session containers are spawned dynamically.
 #
 # Prerequisites:
 # - Traefik reverse proxy running with 'outermost_router' network
 # - TLS certificates configured in Traefik
-# - DNS: hands-blocks-cannons.dx-tooling.org -> server IP
-# - DNS: *.hands-blocks-cannons.dx-tooling.org -> server IP (wildcard)
+# - DNS: *.dx-tooling.org -> server IP
 #
 # Deployment:
-#   docker build -t hbc-game-session ./docker/game-session  # Build game image first
-#   docker compose up --build -d                             # Start lobby
+#   docker build -t hbc-game-session -f docker/game-session/Dockerfile .  # Build game image first
+#   docker compose up --build -d                                          # Start lobby
 
 services:
   lobby:
@@ -31,12 +30,18 @@ services:
     volumes:
       # Mount the docker-cli-wrapper script (read-only)
       - ./bin/docker-cli-wrapper.sh:/app/bin/docker-cli-wrapper.sh:ro
+      # Mount Docker socket to allow container to control host Docker daemon
+      # Note: Write access is needed to create/stop/remove containers
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - outermost_router
     environment:
       - NODE_ENV=production
       - PORT=80
       - DOCKER_WRAPPER_PATH=/app/bin/docker-cli-wrapper.sh
+    # Run as root to access Docker socket (the wrapper script provides security)
+    # Alternatively, you could create a docker group and add a user, but root is simpler
+    # and the wrapper script restricts what Docker commands can be executed
 
 networks:
   outermost_router:

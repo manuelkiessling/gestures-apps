@@ -53,7 +53,8 @@ RUN npm ci --omit=dev --workspace=@block-game/shared --workspace=@block-game/ser
 # Copy built artifacts
 COPY --from=builder /build/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /build/packages/server/dist ./packages/server/dist
-COPY --from=builder /build/packages/server/config ./packages/server/config
+# Copy config to expected location (code looks for ./config/game.yaml relative to cwd)
+COPY --from=builder /build/packages/server/config ./config
 COPY --from=builder /build/packages/client/dist ./client
 
 # Copy nginx config
@@ -74,4 +75,3 @@ EXPOSE 80
 
 # Start services
 CMD ["/entrypoint.sh"]
-

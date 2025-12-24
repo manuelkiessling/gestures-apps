@@ -21,8 +21,9 @@ CONTAINER_RE='^hbc-session-[a-z0-9]+$'
 # Allowed image name for 'run' command
 ALLOWED_IMAGE="hbc-game-session"
 
-# Docker binary
-DOCKER_BIN="${DOCKER_BIN:-/usr/bin/docker}"
+# Docker binary (will be found in PATH when docker-cli is installed)
+# Defaults to /usr/bin/docker but can be overridden via DOCKER_BIN env var
+DOCKER_BIN="${DOCKER_BIN:-docker}"
 
 # Validation mode for testing
 do_exec() {
