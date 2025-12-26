@@ -1,0 +1,36 @@
+{
+  "name": "@gesture-app/hello-hands",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Hello Hands - A minimal two-participant hand tracking demo",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./shared": {
+      "import": "./dist/shared/index.js",
+      "types": "./dist/shared/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/shared/index.ts --format esm --dts --clean",
+    "check": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gesture-app/framework-protocol": "^1.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^24.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.0"
+  }
+}
+

@@ -4,7 +4,7 @@ overview: Revise the refactor plan to enforce incremental changes with per-porti
 todos:
   - id: quality-gates-per-portion
     content: Make per-portion quality gates explicit and enforce that validate stays green after every portion; add narrow per-package gates where appropriate.
-    status: pending
+    status: completed
   - id: portion0-runtime-config
     content: Introduce runtime session config and remove domain hard-coding; add unit tests for config resolution.
     status: completed
@@ -53,7 +53,7 @@ todos:
       - portion7-container-app-selection
   - id: portion9-second-app-proof
     content: Add a minimal second app and tests to prove the framework abstraction is real.
-    status: pending
+    status: completed
     dependencies:
       - portion8-port-blocks-cannons-complete
 ---
@@ -276,9 +276,11 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 ### Backwards-Compatible Field Names (Framework Protocol)
 
 **Location**: `packages/framework/server/src/SessionRuntime.ts`
+
 - Accepts both `player_ready` and `participant_ready` message types (line ~218)
 
 **Location**: `packages/framework/client/src/SessionClient.ts`
+
 - Welcome message: accepts `playerId`/`playerNumber`/`gamePhase` in addition to `participantId`/`participantNumber`/`sessionPhase` (lines ~323-326)
 - Session started: accepts both `game_started` and `session_started` (line ~285-286)
 - Session ended: accepts both `game_over` and `session_ended` (lines ~291-292)
@@ -288,6 +290,7 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 ### Compatibility Re-exports
 
 **Location**: `packages/shared/src/index.ts` and `packages/shared/src/protocol/index.ts`
+
 - Re-exports from `@gesture-app/blocks-cannons/shared` for backwards compatibility
 - Deprecation notices added; should eventually be removed entirely
 
@@ -304,9 +307,7 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 
 ### Portion 0 — Runtime Session Config (COMPLETED ✓)
 
-**Completed**: 2025-12-26
-
-**Design decisions**:
+**Completed**: 2025-12-26**Design decisions**:
 
 - Session config injected via `window.__SESSION_CONFIG__` (set by nginx/entrypoint before app loads)
 - Fallback: fetch from `/session.json` endpoint if window global not present
@@ -330,24 +331,21 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 - Client now receives session config from hosting environment, making it app-agnostic
 - StatusDisplay receives lobbyUrl via constructor, no longer derives it from hostname
 
-**Quality gate**: ✓ All 253 tests pass (20 new + 233 existing)
-
----
+**Quality gate**: ✓ All 253 tests pass (20 new + 233 existing)---
 
 ### Portion 1 — Scaffold Packages (COMPLETED ✓)
 
-**Completed**: 2025-12-26
+**Completed**: 2025-12-26**New packages created**:| Package | Purpose |
 
-**New packages created**:
-
-| Package | Purpose |
 |---------|---------|
-| `@gesture-app/framework-protocol` | Lifecycle protocol (participant_ready, session_started, session_ended) |
-| `@gesture-app/framework-server` | Server runtime (2-participant admission, lifecycle gating) |
-| `@gesture-app/framework-client` | Client runtime (WS lifecycle, overlays, hand input) |
-| `@gesture-app/blocks-cannons` | Application placeholder (will receive migrated game code) |
 
-**Files created per package**:
+| `@gesture-app/framework-protocol` | Lifecycle protocol (participant_ready, session_started, session_ended) |
+
+| `@gesture-app/framework-server` | Server runtime (2-participant admission, lifecycle gating) |
+
+| `@gesture-app/framework-client` | Client runtime (WS lifecycle, overlays, hand input) |
+
+| `@gesture-app/blocks-cannons` | Application placeholder (will receive migrated game code) |**Files created per package**:
 
 - `package.json`, `tsconfig.json`, `biome.json`, `vitest.config.ts`
 - `src/index.ts` — minimal exports (types, version constants)
@@ -359,23 +357,19 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 - Added `build:deps` script to build `@block-game/shared` and `@gesture-app/framework-protocol` before other packages
 - Updated `validate` script to use `build:deps`
 
-**Quality gate**: ✓ All 268 tests pass (15 new + 253 existing)
-
----
+**Quality gate**: ✓ All 268 tests pass (15 new + 253 existing)---
 
 ### Portion 2 — Split Shared (COMPLETED ✓)
 
-**Completed**: 2025-12-26
+**Completed**: 2025-12-26**What was split**:| Content | Source | Destination |
 
-**What was split**:
-
-| Content | Source | Destination |
 |---------|--------|-------------|
-| Types (Block, Projectile, Player, etc.) | `@block-game/shared/types` | `@gesture-app/blocks-cannons/shared` |
-| Protocol (all Zod schemas + messages) | `@block-game/shared/protocol` | `@gesture-app/blocks-cannons/shared` |
-| Constants (colors, thresholds, etc.) | `@block-game/shared/constants` | `@gesture-app/blocks-cannons/shared` |
 
-**New files in `@gesture-app/blocks-cannons`**:
+| Types (Block, Projectile, Player, etc.) | `@block-game/shared/types` | `@gesture-app/blocks-cannons/shared` |
+
+| Protocol (all Zod schemas + messages) | `@block-game/shared/protocol` | `@gesture-app/blocks-cannons/shared` |
+
+| Constants (colors, thresholds, etc.) | `@block-game/shared/constants` | `@gesture-app/blocks-cannons/shared` |**New files in `@gesture-app/blocks-cannons`**:
 
 - `src/shared/types.ts` — App-specific type definitions
 - `src/shared/constants.ts` — Game constants (colors, thresholds)
@@ -396,16 +390,13 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 3. `@block-game/shared` (now depends on blocks-cannons)
 4. Everything else
 
-**Quality gate**: ✓ All 287 tests pass (19 new + 268 existing)
-
----
+**Quality gate**: ✓ All 287 tests pass (19 new + 268 existing)---
 
 ### Portion 3 — Framework Server Runtime (COMPLETED)
 
 **Started**: 2025-12-26
-**Completed**: 2025-12-26
 
-**Design decisions**:
+**Completed**: 2025-12-26**Design decisions**:
 
 - `SessionRuntime<TClientMessage, TServerMessage, TWelcomeData, TResetData>` handles all lifecycle concerns
 - **Framework-level** (generic to all 2-participant apps):
@@ -450,28 +441,25 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 - [x] Add comprehensive framework-server conformance tests
 - [x] Run quality gate (npm run validate)
 
-**Quality gate**: ✓ All 305 tests pass (22 new SessionRuntime tests)
-
----
+**Quality gate**: ✓ All 305 tests pass (22 new SessionRuntime tests)---
 
 ### Portion 4 — Framework Client Runtime (COMPLETED)
 
 **Started**: 2025-12-26
-**Completed**: 2025-12-26
 
-**Design decisions**:
+**Completed**: 2025-12-26**Design decisions**:
 
 - `SessionClient<TClientMessage, TServerMessage, TWelcomeData>` handles all client-side lifecycle concerns
 - **Framework-level** (generic to all 2-participant apps):
-  - WebSocket connection management (connect, disconnect, reconnect)
-  - Connection state tracking: `disconnected → connecting → connected → error`
-  - Session lifecycle events: welcome, opponent join/leave, start, end, reset
-  - Ready-state signaling (`sendReady()`)
-  - Play-again voting (`sendPlayAgainVote()`)
-  - Automatic reconnection (optional, configurable)
+- WebSocket connection management (connect, disconnect, reconnect)
+- Connection state tracking: `disconnected → connecting → connected → error`
+- Session lifecycle events: welcome, opponent join/leave, start, end, reset
+- Ready-state signaling (`sendReady()`)
+- Play-again voting (`sendPlayAgainVote()`)
+- Automatic reconnection (optional, configurable)
 - **App-level** (delegated via event handlers):
-  - `onAppMessage(message)`: Handle app-specific messages (block_grab, projectile_*, etc.)
-  - App-specific welcome data passed through as `appData`
+- `onAppMessage(message)`: Handle app-specific messages (block_grab, projectile_*, etc.)
+- App-specific welcome data passed through as `appData`
 - Backwards-compatible: supports both old field names (`playerId`, `playerNumber`, `gamePhase`, `game_started`, `game_over`, `game_reset`) and new (`participantId`, `participantNumber`, `sessionPhase`, `session_started`, etc.)
 - Framework message types are handled internally and routed to lifecycle handlers
 - Non-framework message types are routed to `onAppMessage` for app handling
@@ -481,14 +469,14 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 - `packages/framework/client/src/SessionClient.ts` — Core session client implementation
 - `packages/framework/client/src/index.ts` — Updated exports
 - `packages/framework/client/tests/SessionClient.test.ts` — 28 comprehensive tests covering:
-  - Connection management (states, connect, disconnect)
-  - Welcome handling (new and backwards-compat field names)
-  - Session lifecycle (start, end, opponent events)
-  - Play-again flow (status, reset)
-  - Outgoing messages (ready, vote, app messages)
-  - App message routing
-  - Reconnection (auto, max attempts, cancel)
-  - State reset on disconnect
+- Connection management (states, connect, disconnect)
+- Welcome handling (new and backwards-compat field names)
+- Session lifecycle (start, end, opponent events)
+- Play-again flow (status, reset)
+- Outgoing messages (ready, vote, app messages)
+- App message routing
+- Reconnection (auto, max attempts, cancel)
+- State reset on disconnect
 - `packages/framework/client/tests/client.test.ts` — Updated smoke tests
 
 **Progress**:
@@ -499,43 +487,40 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 - [x] Add comprehensive framework-client tests
 - [x] Run quality gate (npm run validate)
 
-**Quality gate**: ✓ All 337 tests pass (28 new SessionClient tests)
-
----
+**Quality gate**: ✓ All 337 tests pass (28 new SessionClient tests)---
 
 ### Portion 5 — App Registry (COMPLETED)
 
 **Started**: 2025-12-26
-**Completed**: 2025-12-26
 
-**Design decisions**:
+**Completed**: 2025-12-26**Design decisions**:
 
 - **AppManifest interface**: Minimal contract apps implement
-  - Required: `id`, `name`, `version`
-  - Optional: `description`, `tags`
+- Required: `id`, `name`, `version`
+- Optional: `description`, `tags`
 - **AppRegistry class**: Manages app registration and discovery
-  - `register(manifest)`: Register an app (validates manifest, throws on duplicate)
-  - `get(appId)`: Get manifest or throw `AppNotFoundError`
-  - `tryGet(appId)`: Get manifest or undefined
-  - `has(appId)`: Check if app exists
-  - `listIds()`, `listAll()`: Enumerate registered apps
-  - `clear()`: Reset registry (for testing)
+- `register(manifest)`: Register an app (validates manifest, throws on duplicate)
+- `get(appId)`: Get manifest or throw `AppNotFoundError`
+- `tryGet(appId)`: Get manifest or undefined
+- `has(appId)`: Check if app exists
+- `listIds()`, `listAll()`: Enumerate registered apps
+- `clear()`: Reset registry (for testing)
 - **globalRegistry**: Shared singleton instance for cross-module discovery
 - **Error types**: `AppNotFoundError`, `DuplicateAppError`, `InvalidManifestError`
 - **validateManifest()**: Runtime validation function with detailed error messages
 - **Auto-registration**: Apps auto-register when their module is imported
-  - `registerApp()` function is idempotent (safe to call multiple times)
+- `registerApp()` function is idempotent (safe to call multiple times)
 
 **Files created/modified**:
 
 - `packages/framework/protocol/src/registry.ts` — AppRegistry implementation
 - `packages/framework/protocol/src/index.ts` — Export registry types
 - `packages/framework/protocol/tests/registry.test.ts` — 28 comprehensive tests:
-  - Registration (valid, duplicate, optional fields)
-  - Get/tryGet/has queries
-  - List operations
-  - Manifest validation (all required/optional fields, error cases)
-  - Global registry singleton behavior
+- Registration (valid, duplicate, optional fields)
+- Get/tryGet/has queries
+- List operations
+- Manifest validation (all required/optional fields, error cases)
+- Global registry singleton behavior
 - `packages/applications/blocks-cannons/src/index.ts` — Updated to use AppManifest type and auto-register
 - `packages/applications/blocks-cannons/tests/app.test.ts` — Updated to verify registration
 
@@ -548,31 +533,28 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 - [x] Add comprehensive registry tests
 - [x] Run quality gate (npm run validate)
 
-**Quality gate**: ✓ All 368 tests pass (31 new registry + app tests)
-
----
+**Quality gate**: ✓ All 368 tests pass (31 new registry + app tests)---
 
 ### Portion 6 — Lobby Multi-App (COMPLETED)
 
 **Started**: 2025-12-26
-**Completed**: 2025-12-26
 
-**Design decisions**:
+**Completed**: 2025-12-26**Design decisions**:
 
 - **API changes**:
-  - `POST /api/sessions` now requires `appId` in request body
-  - Returns `appId` in response along with `sessionId`, `gameUrl`, `joinUrl`
-  - `GET /api/sessions/:id` returns `appId` in status response
-  - New `GET /api/sessions/apps` endpoint lists available apps from registry
+- `POST /api/sessions` now requires `appId` in request body
+- Returns `appId` in response along with `sessionId`, `gameUrl`, `joinUrl`
+- `GET /api/sessions/:id` returns `appId` in status response
+- New `GET /api/sessions/apps` endpoint lists available apps from registry
 - **Validation**: `appId` is validated against the global registry before session creation
-  - Returns 400 with helpful error message and list of available apps if unknown
+- Returns 400 with helpful error message and list of available apps if unknown
 - **URL format**: `https://{sessionId}-{appId}-gestures.{baseDomain}` (single-level subdomain)
-  - Example: `https://abc123-blocks-cannons-gestures.dx-tooling.org`
-  - Lobby at: `https://gestures-apps.dx-tooling.org`
+- Example: `https://abc123-blocks-cannons-gestures.dx-tooling.org`
+- Lobby at: `https://gestures-apps.dx-tooling.org`
 - **Container naming**: `session-{appId}-{sessionId}`
-  - Example: `session-blocks-cannons-abc123`
+- Example: `session-blocks-cannons-abc123`
 - **Docker image naming**: `{appId}-game-session`
-  - Example: `blocks-cannons-game-session`
+- Example: `blocks-cannons-game-session`
 - **Environment variables**: Container receives `APP_ID` alongside `SESSION_ID`
 
 **Files modified**:
@@ -597,38 +579,36 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 - [x] Update all lobby tests for appId
 - [x] Run quality gate (npm run validate)
 
-**Quality gate**: ✓ All 374 tests pass
-
----
+**Quality gate**: ✓ All 374 tests pass---
 
 ### Portion 7 — Container App Selection (COMPLETED)
 
 **Started**: 2025-12-26
-**Completed**: 2025-12-26
 
-**Design decisions**:
+**Completed**: 2025-12-26**Design decisions**:
 
 - **Session config injection via `/session.json`**:
-  - Generated by `entrypoint.sh` at container startup
-  - Served by nginx with no-cache headers (session-specific)
-  - Client already supports fetching via `resolveSessionConfig()`
+- Generated by `entrypoint.sh` at container startup
+- Served by nginx with no-cache headers (session-specific)
+- Client already supports fetching via `resolveSessionConfig()`
 - **Environment variables** passed to container:
-  - `SESSION_ID`: Unique session identifier
-  - `APP_ID`: Application identifier (defaults to "blocks-cannons")
-  - `WITH_BOT`: Whether to start a bot player
-  - `BOT_DIFFICULTY`: Bot difficulty level
-  - `LOBBY_URL`: URL to return to lobby (for "return to lobby" link)
+- `SESSION_ID`: Unique session identifier
+- `APP_ID`: Application identifier (defaults to "blocks-cannons")
+- `WITH_BOT`: Whether to start a bot player
+- `BOT_DIFFICULTY`: Bot difficulty level
+- `LOBBY_URL`: URL to return to lobby (for "return to lobby" link)
 - **Session config format**:
   ```json
-  {
-    "appId": "blocks-cannons",
-    "sessionId": "abc123",
-    "wsUrl": "wss://abc123-blocks-cannons-gestures.dx-tooling.org/ws",
-    "lobbyUrl": "https://gestures-apps.dx-tooling.org",
-    "withBot": false,
-    "botDifficulty": 0.5
-  }
+    {
+      "appId": "blocks-cannons",
+      "sessionId": "abc123",
+      "wsUrl": "wss://abc123-blocks-cannons-gestures.dx-tooling.org/ws",
+      "lobbyUrl": "https://gestures-apps.dx-tooling.org",
+      "withBot": false,
+      "botDifficulty": 0.5
+    }
   ```
+
 - **Backwards compatibility**: `APP_ID` defaults to "blocks-cannons" if not provided
 
 **Files created/modified**:
@@ -643,9 +623,9 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 **Existing test coverage**:
 
 - Client's `SessionConfig.test.ts` already covers:
-  - `fetchSessionConfig()` from `/session.json` endpoint
-  - Validation of required fields
-  - Priority: injected config → fetched config → development mode
+- `fetchSessionConfig()` from `/session.json` endpoint
+- Validation of required fields
+- Priority: injected config → fetched config → development mode
 
 **Progress**:
 
@@ -655,25 +635,22 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 - [x] Add APP_ID and LOBBY_URL to Dockerfile
 - [x] Run quality gate (npm run validate)
 
-**Quality gate**: ✓ All 374 tests pass (existing SessionConfig tests cover fetch functionality)
-
----
+**Quality gate**: ✓ All 374 tests pass (existing SessionConfig tests cover fetch functionality)---
 
 ### Portion 8 — Complete blocks-cannons Port (COMPLETED)
 
 **Started**: 2025-12-26
-**Completed**: 2025-12-26
 
-**Design decisions**:
+**Completed**: 2025-12-26**Design decisions**:
 
 - **Strangler-fig approach**: Instead of a big-bang rewrite, we established dependency directions:
-  - `@gesture-app/blocks-cannons/server` now contains game logic (GameState, systems)
-  - `@block-game/server` imports from `@gesture-app/blocks-cannons/server`
-  - Client and server use `@block-game/shared` which re-exports from blocks-cannons
+- `@gesture-app/blocks-cannons/server` now contains game logic (GameState, systems)
+- `@block-game/server` imports from `@gesture-app/blocks-cannons/server`
+- Client and server use `@block-game/shared` which re-exports from blocks-cannons
 - **Game logic moved to app package**:
-  - GameState, CannonSystem, CollisionSystem, ProjectileSystem → `packages/applications/blocks-cannons/src/server/game/`
-  - Config loading → `packages/applications/blocks-cannons/src/server/config/`
-  - Tests moved alongside code
+- GameState, CannonSystem, CollisionSystem, ProjectileSystem → `packages/applications/blocks-cannons/src/server/game/`
+- Config loading → `packages/applications/blocks-cannons/src/server/config/`
+- Tests moved alongside code
 - **Framework integration deferred**: Full integration with `SessionRuntime` AppHooks is a future task
 - **Bot code remains in server**: Bot is a consumer of game types, not a producer - correct dependency direction already established
 
@@ -707,4 +684,50 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 - [x] Move and adapt tests
 - [x] Run quality gate (npm run validate)
 
-**Quality gate**: ✓ All 461 tests pass (111 in blocks-cannons, including 85 new server tests)
+**Quality gate**: ✓ All 461 tests pass (111 in blocks-cannons, including 85 new server tests)---
+
+### Portion 9 — Second App Proof (COMPLETED)
+
+**Started**: 2025-12-26
+
+**Completed**: 2025-12-26**Design decisions**:
+
+- **Minimal app concept**: "Hello Hands" - two participants join and see each other's hand positions
+- **Self-registering**: App auto-registers with `globalRegistry` when imported (no framework edits needed)
+- **Minimal protocol**: Only `hand_update` and `wave` messages - proves framework handles routing
+- **No game logic**: Just position broadcasting - proves framework lifecycle is reusable
+- **Tests focus on framework independence**: Key tests verify app works without any framework modifications
+
+**Files created**:
+
+- `packages/applications/hello-hands/package.json` — Package config with exports for root and shared
+- `packages/applications/hello-hands/tsconfig.json` — TypeScript config
+- `packages/applications/hello-hands/biome.json` — Linting config
+- `packages/applications/hello-hands/vitest.config.ts` — Test config
+- `packages/applications/hello-hands/src/index.ts` — App manifest and auto-registration
+- `packages/applications/hello-hands/src/shared/index.ts` — Shared module exports
+- `packages/applications/hello-hands/src/shared/types.ts` — Participant, position, hand state types
+- `packages/applications/hello-hands/src/shared/protocol.ts` — Client/server message types with Zod schemas
+- `packages/applications/hello-hands/tests/app.test.ts` — 8 tests for manifest and registration
+- `packages/applications/hello-hands/tests/shared.test.ts` — 8 tests for types and protocol
+- `packages/applications/hello-hands/tests/integration.test.ts` — 5 tests proving framework independence
+
+**Key proof points**:
+
+1. **No framework edits required**: hello-hands was added purely by:
+
+- Creating a new package in `packages/applications/`
+- Importing `@gesture-app/framework-protocol` to use `AppRegistry`
+- Self-registering via `globalRegistry.register()`
+
+2. **Lobby compatibility**: App can be used with `POST /api/sessions` with `appId: "hello-hands"`
+3. **Multi-app coexistence**: Tests verify both `hello-hands` and `blocks-cannons` can be registered simultaneously
+
+**Progress**:
+
+- [x] Scaffold hello-hands package with manifest
+- [x] Implement minimal shared types (Position2D, HandState, Participant)
+- [x] Add protocol with Zod schemas (hand_update, wave messages)
+- [x] Add app registration tests
+- [x] Add integration tests proving framework independence
+- [x] Run quality gate (npm run validate)
