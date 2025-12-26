@@ -1,6 +1,9 @@
-# Game Session Container
+# Blocks & Cannons Game Session Container
 # Contains: nginx (static client) + game server + optional bot
 # Base: node:24-bookworm-slim (Debian-based)
+#
+# Build from repo root:
+#   docker build -f packages/applications/blocks-cannons/docker/Dockerfile -t blocks-cannons-game-session .
 
 FROM node:24-bookworm-slim AS base
 
@@ -58,20 +61,23 @@ COPY --from=builder /build/packages/server/config ./config
 COPY --from=builder /build/packages/client/dist ./client
 
 # Copy nginx config
-COPY docker/game-session/nginx.conf /etc/nginx/nginx.conf
+COPY packages/applications/blocks-cannons/docker/nginx.conf /etc/nginx/nginx.conf
 
 # Copy entrypoint script
-COPY docker/game-session/entrypoint.sh /entrypoint.sh
+COPY packages/applications/blocks-cannons/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Environment variables
 ENV PORT=3001
 ENV SESSION_ID=""
+ENV APP_ID="blocks-cannons"
 ENV WITH_BOT="false"
 ENV BOT_DIFFICULTY="0.5"
+ENV LOBBY_URL="https://lobby.dx-tooling.org"
 
 # Expose port 80 (nginx)
 EXPOSE 80
 
 # Start services
 CMD ["/entrypoint.sh"]
+

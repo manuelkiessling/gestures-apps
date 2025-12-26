@@ -67,7 +67,8 @@ docker network create outermost_router
 This image is used by the lobby to spawn game containers:
 
 ```bash
-docker build -t hbc-game-session -f docker/game-session/Dockerfile .
+# Build from repo root:
+docker build -t blocks-cannons-game-session -f packages/applications/blocks-cannons/docker/Dockerfile .
 ```
 
 ### 5. Start the Lobby
@@ -163,7 +164,7 @@ cd /var/www/hands-blocks-cannons
 git pull
 
 # Rebuild game session image
-docker build -t hbc-game-session -f docker/game-session/Dockerfile .
+docker build -t blocks-cannons-game-session -f packages/applications/blocks-cannons/docker/Dockerfile .
 
 # Rebuild and restart lobby
 docker compose up --build -d

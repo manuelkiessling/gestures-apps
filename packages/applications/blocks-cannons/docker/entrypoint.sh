@@ -1,13 +1,36 @@
 #!/bin/bash
 set -e
 
-echo "Starting game session container..."
+echo "Starting Blocks & Cannons game session container..."
 echo "SESSION_ID: ${SESSION_ID:-unknown}"
+echo "APP_ID: ${APP_ID:-blocks-cannons}"
 echo "WITH_BOT: ${WITH_BOT:-false}"
 echo "BOT_DIFFICULTY: ${BOT_DIFFICULTY:-0.5}"
 
+# Default APP_ID to blocks-cannons for backwards compatibility
+APP_ID="${APP_ID:-blocks-cannons}"
+
+# Generate session config JSON for the client
+# This will be served by nginx at /session.json
+LOBBY_URL="${LOBBY_URL:-https://lobby.dx-tooling.org}"
+WS_URL="wss://${SESSION_ID}-${APP_ID}.dx-tooling.org/ws"
+
+cat > /app/client/session.json <<EOF
+{
+  "appId": "${APP_ID}",
+  "sessionId": "${SESSION_ID}",
+  "wsUrl": "${WS_URL}",
+  "lobbyUrl": "${LOBBY_URL}",
+  "withBot": ${WITH_BOT:-false},
+  "botDifficulty": ${BOT_DIFFICULTY:-0.5}
+}
+EOF
+
+echo "Generated session.json:"
+cat /app/client/session.json
+
 # Start the game server in the background
-echo "Starting game server..."
+echo "Starting game server for app: ${APP_ID}..."
 cd /app && node packages/server/dist/index.js &
 GAME_SERVER_PID=$!
 

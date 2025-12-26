@@ -9,8 +9,8 @@
 # - DNS: *.dx-tooling.org -> server IP
 #
 # Deployment:
-#   docker build -t hbc-game-session -f docker/game-session/Dockerfile .  # Build game image first
-#   docker compose up --build -d                                          # Start lobby
+#   docker build -t blocks-cannons-game-session -f packages/applications/blocks-cannons/docker/Dockerfile .
+#   docker compose up --build -d
 
 services:
   lobby:
