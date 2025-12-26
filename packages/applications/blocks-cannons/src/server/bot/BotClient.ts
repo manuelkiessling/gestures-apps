@@ -527,7 +527,7 @@ export class BotClient {
   private handleWelcome(message: Extract<BotServerMessage, { type: 'welcome' }>): void {
     this.playerId = message.participantId;
     this.playerNumber = message.participantNumber;
-    this.room = message.appData.room;
+    this.room = message.appData?.room ?? null;
     this.gamePhase = message.sessionPhase as GamePhase;
 
     logger.info('Bot joined as player', {
@@ -538,7 +538,7 @@ export class BotClient {
     });
 
     // Store blocks separated by owner
-    for (const block of message.appData.blocks) {
+    for (const block of message.appData?.blocks ?? []) {
       if (block.ownerId === this.playerId) {
         this.myBlocks.set(block.id, block);
         if (block.blockType === 'cannon') {
@@ -554,7 +554,7 @@ export class BotClient {
     }
 
     // Store initial projectiles (if any)
-    for (const projectile of message.appData.projectiles) {
+    for (const projectile of message.appData?.projectiles ?? []) {
       this.allProjectiles.set(projectile.id, projectile);
     }
 

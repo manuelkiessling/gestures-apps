@@ -198,24 +198,8 @@ export const WallHitMessage = z.object({
   wallSide: z.union([z.literal('minZ'), z.literal('maxZ')]),
 });
 
-/**
- * Union of all valid server-to-client messages.
- */
-export const ServerMessage = z.discriminatedUnion('type', [
-  BlockGrabbedMessage,
-  BlockMovedMessage,
-  BlockReleasedMessage,
-  ProjectileSpawnedMessage,
-  ProjectilesUpdateMessage,
-  ProjectileDestroyedMessage,
-  BlockDestroyedMessage,
-  WallHitMessage,
-  ErrorMessage,
-]);
-
-export type ServerMessage = z.infer<typeof ServerMessage>;
-
 // ============ Framework appData payloads ============
+// These are the app-specific data sent inside framework messages
 
 export const BlocksWelcomeDataSchema = z.object({
   blocks: z.array(BlockSchema),
@@ -242,6 +226,96 @@ export const BlocksSessionEndedDataSchema = z.object({
   appReason: z.literal('blocks_destroyed').optional(),
 });
 export type BlocksSessionEndedData = z.infer<typeof BlocksSessionEndedDataSchema>;
+
+// ============ Framework Messages ============
+// These are sent by SessionRuntime and need to be handled by the client
+
+/**
+ * Framework welcome message with app data.
+ */
+export const FrameworkWelcomeMessage = z.object({
+  type: z.literal('welcome'),
+  participantId: z.string(),
+  participantNumber: z.union([z.literal(1), z.literal(2)]),
+  sessionPhase: z.string(),
+  appData: BlocksWelcomeDataSchema.optional(),
+});
+
+/**
+ * Framework opponent joined message.
+ */
+export const FrameworkOpponentJoinedMessage = z.object({
+  type: z.literal('opponent_joined'),
+  appData: BlocksOpponentJoinedDataSchema.optional(),
+});
+
+/**
+ * Framework opponent left message.
+ */
+export const FrameworkOpponentLeftMessage = z.object({
+  type: z.literal('opponent_left'),
+});
+
+/**
+ * Framework session started message.
+ */
+export const FrameworkSessionStartedMessage = z.object({
+  type: z.literal('session_started'),
+});
+
+/**
+ * Framework session ended message.
+ */
+export const FrameworkSessionEndedMessage = z.object({
+  type: z.literal('session_ended'),
+  winnerId: z.string().optional(),
+  winnerNumber: z.union([z.literal(1), z.literal(2)]).optional(),
+  reason: z.string().optional(),
+  appData: BlocksSessionEndedDataSchema.optional(),
+});
+
+/**
+ * Framework play again status message.
+ */
+export const FrameworkPlayAgainStatusMessage = z.object({
+  type: z.literal('play_again_status'),
+  votedParticipantIds: z.array(z.string()),
+  totalParticipants: z.number(),
+});
+
+/**
+ * Framework session reset message.
+ */
+export const FrameworkSessionResetMessage = z.object({
+  type: z.literal('session_reset'),
+  appData: BlocksResetDataSchema.optional(),
+});
+
+/**
+ * Union of all valid server-to-client messages (app + framework).
+ */
+export const ServerMessage = z.discriminatedUnion('type', [
+  // Framework messages
+  FrameworkWelcomeMessage,
+  FrameworkOpponentJoinedMessage,
+  FrameworkOpponentLeftMessage,
+  FrameworkSessionStartedMessage,
+  FrameworkSessionEndedMessage,
+  FrameworkPlayAgainStatusMessage,
+  FrameworkSessionResetMessage,
+  // App-specific messages
+  BlockGrabbedMessage,
+  BlockMovedMessage,
+  BlockReleasedMessage,
+  ProjectileSpawnedMessage,
+  ProjectilesUpdateMessage,
+  ProjectileDestroyedMessage,
+  BlockDestroyedMessage,
+  WallHitMessage,
+  ErrorMessage,
+]);
+
+export type ServerMessage = z.infer<typeof ServerMessage>;
 
 // ============ Utility Functions ============
 

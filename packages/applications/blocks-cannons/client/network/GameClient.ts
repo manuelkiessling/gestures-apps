@@ -161,7 +161,7 @@ export class GameClient {
    * Send player ready message (first hand tracking occurred).
    */
   sendPlayerReady(): void {
-    this.send({ type: 'player_ready' });
+    this.send({ type: 'participant_ready' });
   }
 
   /**
@@ -194,28 +194,62 @@ export class GameClient {
 
   private handleMessage(message: ServerMessage): void {
     switch (message.type) {
+      // Framework messages (from SessionRuntime)
       case 'welcome':
         this.events.onWelcome?.({
-          playerId: message.playerId,
-          playerNumber: message.playerNumber,
-          blocks: message.blocks,
-          projectiles: message.projectiles,
-          room: message.room,
-          cameraDistance: message.cameraDistance,
-          wallGrid: message.wallGrid,
-          projectileSize: message.projectileSize,
-          gamePhase: message.gamePhase,
+          // Framework uses participantId/participantNumber, we expose as playerId/playerNumber
+          playerId: message.participantId,
+          playerNumber: message.participantNumber,
+          // App data is nested in appData
+          blocks: message.appData?.blocks ?? [],
+          projectiles: message.appData?.projectiles ?? [],
+          room: message.appData?.room,
+          cameraDistance: message.appData?.cameraDistance,
+          wallGrid: message.appData?.wallGrid,
+          projectileSize: message.appData?.projectileSize,
+          gamePhase: message.appData?.gamePhase ?? 'waiting',
         });
         break;
 
       case 'opponent_joined':
-        this.events.onOpponentJoined?.(message.blocks);
+        this.events.onOpponentJoined?.(message.appData?.blocks ?? []);
         break;
 
       case 'opponent_left':
         this.events.onOpponentLeft?.();
         break;
 
+      case 'session_started':
+        this.events.onGameStarted?.();
+        break;
+
+      case 'session_ended':
+        console.log('GameClient received session_ended:', message);
+        this.events.onGameOver?.(
+          message.winnerId ?? '',
+          message.winnerNumber ?? 1,
+          message.reason ?? 'completed'
+        );
+        break;
+
+      case 'play_again_status':
+        console.log('GameClient received play_again_status:', message);
+        this.events.onPlayAgainStatus?.(
+          message.votedParticipantIds ?? [],
+          message.totalParticipants ?? 0
+        );
+        break;
+
+      case 'session_reset':
+        console.log('GameClient received session_reset:', message);
+        this.events.onGameReset?.(message.appData?.blocks ?? []);
+        break;
+
+      case 'error':
+        this.events.onError?.(message.message);
+        break;
+
+      // App-specific messages (from game logic)
       case 'block_grabbed':
         this.events.onBlockGrabbed?.(message.playerId, message.blockId);
         break;
@@ -246,29 +280,6 @@ export class GameClient {
 
       case 'wall_hit':
         this.events.onWallHit?.(message.position, message.wallSide);
-        break;
-
-      case 'game_started':
-        this.events.onGameStarted?.();
-        break;
-
-      case 'game_over':
-        console.log('GameClient received game_over:', message);
-        this.events.onGameOver?.(message.winnerId, message.winnerNumber, message.reason);
-        break;
-
-      case 'play_again_status':
-        console.log('GameClient received play_again_status:', message);
-        this.events.onPlayAgainStatus?.(message.votedPlayerIds, message.totalPlayers);
-        break;
-
-      case 'game_reset':
-        console.log('GameClient received game_reset:', message);
-        this.events.onGameReset?.(message.blocks);
-        break;
-
-      case 'error':
-        this.events.onError?.(message.message);
         break;
     }
   }
