@@ -39,6 +39,6 @@
     }
   },
   "files": {
-    "includes": ["src/**/*.ts", "tests/**/*.ts"]
+    "includes": ["src/**/*.ts", "tests/**/*.ts", "client/**/*.ts"]
   }
 }

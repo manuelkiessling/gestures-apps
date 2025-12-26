@@ -16,7 +16,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@gesture-app/blocks-cannons": "*",
     "@gesture-app/framework-protocol": "*",
+    "@gesture-app/hello-hands": "*",
     "express": "^5.1.0"
   },
   "devDependencies": {

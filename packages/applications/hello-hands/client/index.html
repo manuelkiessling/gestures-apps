@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello Hands 👋</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Connection overlay -->
+    <div id="connection-overlay" class="overlay">
+      <div class="overlay-content">
+        <h1>Hello Hands 👋</h1>
+        <p>Wave hello to your friend!</p>
+        <div id="connection-status">Connecting...</div>
+        <div id="manual-connect" style="display: none;">
+          <input type="text" id="ws-url" placeholder="ws://localhost:8080" value="ws://localhost:8080">
+          <button id="connect-btn">Connect</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Waiting overlay -->
+    <div id="waiting-overlay" class="overlay" style="display: none;">
+      <div class="overlay-content">
+        <h2>Waiting for friend...</h2>
+        <p>Share this link with a friend!</p>
+        <div class="hand-icon pulse">🖐️</div>
+        <p id="participant-info"></p>
+      </div>
+    </div>
+
+    <!-- Ready overlay -->
+    <div id="ready-overlay" class="overlay" style="display: none;">
+      <div class="overlay-content">
+        <h2>Friend joined!</h2>
+        <p>Raise your hand to start</p>
+        <div class="hand-icon pulse">✋</div>
+        <button id="ready-btn" class="ready-button">I'm Ready!</button>
+      </div>
+    </div>
+
+    <!-- Wave notification -->
+    <div id="wave-notification" class="wave-notification" style="display: none;">
+      <span class="wave-emoji">👋</span>
+      <span class="wave-text">Your friend waved!</span>
+    </div>
+
+    <!-- Main canvas -->
+    <canvas id="canvas"></canvas>
+
+    <!-- Controls -->
+    <div id="controls" style="display: none;">
+      <button id="wave-btn" class="wave-button">👋 Wave</button>
+      <div id="my-color" class="color-indicator"></div>
+      <div id="friend-color" class="color-indicator"></div>
+    </div>
+
+    <!-- Lobby link -->
+    <a id="lobby-link" href="#" class="lobby-link" style="display: none;">← Back to Lobby</a>
+  </div>
+
+  <script type="module" src="main.ts"></script>
+</body>
+</html>
+

@@ -1,0 +1,946 @@
+# Building an App
+
+This guide walks you through creating a new application for the Gesture Apps framework. We'll use **hello-hands** (a minimal two-participant hand tracking demo) as a reference.
+
+## Architecture Overview
+
+The framework handles all the common concerns of a two-participant, WebSocket-networked application:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Framework                                │
+│                                                                 │
+│  ┌─────────────────────┐         ┌─────────────────────┐        │
+│  │   SessionRuntime    │         │    SessionClient    │        │
+│  │   (Server)          │ ◄─────► │    (Client)         │        │
+│  │                     │   WS    │                     │        │
+│  │ • 2-participant     │         │ • Connection mgmt   │        │
+│  │   admission         │         │ • Lifecycle events  │        │
+│  │ • Lifecycle gating  │         │ • Ready signaling   │        │
+│  │ • Ready state       │         │ • Play-again voting │        │
+│  │ • Message routing   │         │ • Reconnection      │        │
+│  │ • Play-again flow   │         │                     │        │
+│  └─────────────────────┘         └─────────────────────┘        │
+│            │                               │                     │
+│            │ AppHooks                      │ Event Handlers      │
+│            ▼                               ▼                     │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                    Your Application                      │    │
+│  │                                                          │    │
+│  │  • Shared types & protocol                               │    │
+│  │  • Server game logic (via AppHooks)                      │    │
+│  │  • Client UI & rendering                                 │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key Concepts:**
+
+| Concept | Description |
+|---------|-------------|
+| **SessionRuntime** | Server-side framework handling connection lifecycle, ready-state gating, and message routing |
+| **SessionClient** | Client-side framework handling WebSocket connection, lifecycle events, and reconnection |
+| **AppHooks** | Interface your server implements to handle app-specific logic |
+| **AppRegistry** | Registry where apps self-register so the lobby can discover them |
+| **AppManifest** | Metadata about your app (id, name, version, description, tags) |
+
+## Quick Start
+
+### 1. Create the Package Structure
+
+```bash
+mkdir -p packages/applications/my-app/{src/{shared,server},client,tests,docker}
+```
+
+Your package structure will look like:
+
+```
+packages/applications/my-app/
+├── package.json
+├── tsconfig.json
+├── biome.json
+├── vitest.config.ts
+├── src/
+│   ├── index.ts          # App manifest + registration
+│   ├── shared/
+│   │   ├── index.ts      # Shared exports
+│   │   ├── types.ts      # Shared types
+│   │   └── protocol.ts   # Message types + schemas
+│   └── server/
+│       ├── index.ts      # Server exports
+│       ├── MyAppSession.ts    # AppHooks implementation
+│       └── server.ts     # Standalone server
+├── client/
+│   ├── index.html
+│   ├── main.ts
+│   ├── styles.css
+│   └── vite.config.ts
+├── tests/
+│   ├── app.test.ts
+│   └── shared.test.ts
+└── docker/
+    ├── Dockerfile
+    ├── entrypoint.sh
+    └── nginx.conf
+```
+
+### 2. Create package.json
+
+```json
+{
+  "name": "@gesture-app/my-app",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "My awesome two-participant app",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./shared": {
+      "import": "./dist/shared/index.js",
+      "types": "./dist/shared/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server/index.js",
+      "types": "./dist/server/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/shared/index.ts src/server/index.ts --format esm --dts --clean",
+    "build:client": "vite build --config client/vite.config.ts",
+    "start": "node dist/server/server.js",
+    "dev": "tsx src/server/server.ts",
+    "check": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gesture-app/framework-protocol": "^1.0.0",
+    "@gesture-app/framework-server": "^1.0.0",
+    "ws": "^8.18.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.5.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.0.0",
+    "vitest": "^4.0.0"
+  }
+}
+```
+
+## Step-by-Step Implementation
+
+### Step 1: Define Shared Types
+
+Create `src/shared/types.ts` with your app's core types:
+
+```typescript
+/**
+ * @fileoverview Shared types for My App.
+ */
+
+/** Unique identifier for a participant */
+export type ParticipantId = string;
+
+/** Participant number (always 1 or 2) */
+export type ParticipantNumber = 1 | 2;
+
+/** Example: Position in 2D space */
+export interface Position2D {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Example: State tracked for each participant */
+export interface ParticipantState {
+  readonly position: Position2D;
+  readonly score: number;
+}
+
+/** Colors for participants */
+export const PARTICIPANT_COLORS: Record<ParticipantNumber, number> = {
+  1: 0x4ecdc4, // Teal
+  2: 0xff6b6b, // Coral
+};
+```
+
+### Step 2: Define Protocol Messages
+
+Create `src/shared/protocol.ts` with message types and Zod schemas:
+
+```typescript
+/**
+ * @fileoverview Protocol messages for My App.
+ */
+
+import { z } from 'zod';
+import type { ParticipantId, Position2D } from './types.js';
+
+// Re-export types that consumers need
+export type { Position2D } from './types.js';
+
+// ============ Schemas ============
+
+export const Position2DSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+});
+
+// ============ Client → Server Messages ============
+
+/** Client sends position update */
+export interface PositionUpdateMessage {
+  type: 'position_update';
+  position: Position2D;
+}
+
+export const PositionUpdateMessageSchema = z.object({
+  type: z.literal('position_update'),
+  position: Position2DSchema,
+});
+
+/** Union of all client messages */
+export type ClientMessage = PositionUpdateMessage;
+
+export const ClientMessageSchema = z.discriminatedUnion('type', [
+  PositionUpdateMessageSchema,
+]);
+
+/** Parse and validate a client message */
+export function parseClientMessage(data: unknown): ClientMessage | null {
+  const result = ClientMessageSchema.safeParse(data);
+  return result.success ? result.data : null;
+}
+
+// ============ Server → Client Messages ============
+
+/** Server broadcasts position update */
+export interface PositionBroadcastMessage {
+  type: 'position_broadcast';
+  participantId: ParticipantId;
+  position: Position2D;
+}
+
+/** Server sends score update */
+export interface ScoreUpdateMessage {
+  type: 'score_update';
+  scores: Record<ParticipantId, number>;
+}
+
+/** Union of all server messages */
+export type ServerMessage = PositionBroadcastMessage | ScoreUpdateMessage;
+
+/** Serialize a server message */
+export function serializeServerMessage(message: ServerMessage): string {
+  return JSON.stringify(message);
+}
+
+// ============ Welcome/Reset Data ============
+
+/** App-specific data included in the welcome message */
+export interface MyAppWelcomeData {
+  color: number;
+  opponentColor?: number;
+}
+
+/** App-specific data included in the reset message */
+export interface MyAppResetData {
+  message: string;
+}
+```
+
+### Step 3: Create the App Manifest
+
+Create `src/index.ts` to define and register your app:
+
+```typescript
+/**
+ * @fileoverview My App - A two-participant demo.
+ */
+
+import {
+  type AppManifest,
+  globalRegistry,
+  validateManifest,
+} from '@gesture-app/framework-protocol';
+
+/** Application identifier (used in URLs, API calls) */
+export const APP_ID = 'my-app';
+
+/** Human-readable name */
+export const APP_NAME = 'My App';
+
+/** Version */
+export const APP_VERSION = '1.0.0';
+
+/** App manifest for framework registration */
+export const APP_MANIFEST: AppManifest = {
+  id: APP_ID,
+  name: APP_NAME,
+  version: APP_VERSION,
+  description: 'A two-participant demo app',
+  tags: ['demo'],
+};
+
+/**
+ * Register this app with the global registry.
+ * Safe to call multiple times (idempotent).
+ */
+export function registerApp(): void {
+  if (!globalRegistry.has(APP_ID)) {
+    validateManifest(APP_MANIFEST);
+    globalRegistry.register(APP_MANIFEST);
+  }
+}
+
+// Auto-register when this module is imported
+registerApp();
+
+// Re-export shared types
+export * from './shared/index.js';
+```
+
+### Step 4: Implement Server AppHooks
+
+Create `src/server/MyAppSession.ts` implementing the `AppHooks` interface:
+
+```typescript
+/**
+ * @fileoverview Server-side session logic for My App.
+ */
+
+import type {
+  ParticipantId,
+  ParticipantNumber,
+  SessionPhase,
+} from '@gesture-app/framework-protocol';
+import type {
+  AppHooks,
+  MessageResponse,
+  Participant,
+  SessionRuntimeConfig,
+} from '@gesture-app/framework-server';
+import type {
+  ClientMessage,
+  ServerMessage,
+  MyAppWelcomeData,
+  MyAppResetData,
+} from '../shared/protocol.js';
+import { PARTICIPANT_COLORS } from '../shared/types.js';
+
+/**
+ * AppHooks implementation for My App.
+ */
+export class MyAppHooks
+  implements AppHooks<ClientMessage, ServerMessage, MyAppWelcomeData, MyAppResetData>
+{
+  private participantColors = new Map<ParticipantId, number>();
+
+  generateParticipantId(participantNumber: ParticipantNumber): ParticipantId {
+    return `player-${participantNumber}`;
+  }
+
+  onParticipantJoin(participant: Participant): MyAppWelcomeData {
+    const color = PARTICIPANT_COLORS[participant.number];
+    this.participantColors.set(participant.id, color);
+
+    // Find opponent's color if they exist
+    let opponentColor: number | undefined;
+    for (const [id, c] of this.participantColors) {
+      if (id !== participant.id) {
+        opponentColor = c;
+        break;
+      }
+    }
+
+    return { color, opponentColor };
+  }
+
+  onParticipantLeave(participantId: ParticipantId): void {
+    this.participantColors.delete(participantId);
+  }
+
+  onMessage(
+    message: ClientMessage,
+    senderId: ParticipantId,
+    _phase: SessionPhase
+  ): MessageResponse<ServerMessage>[] {
+    switch (message.type) {
+      case 'position_update':
+        // Broadcast position to opponent
+        return [
+          {
+            target: 'opponent',
+            message: {
+              type: 'position_broadcast',
+              participantId: senderId,
+              position: message.position,
+            },
+          },
+        ];
+
+      default:
+        return [];
+    }
+  }
+
+  onSessionStart(): void {
+    console.log('[MyApp] Session started!');
+  }
+
+  onReset(): MyAppResetData {
+    return { message: 'Ready for another round!' };
+  }
+}
+
+/** Runtime configuration */
+export function createMyAppConfig(): SessionRuntimeConfig {
+  return {
+    maxParticipants: 2,
+    tickEnabled: false,  // Set to true if you need a game loop
+    tickIntervalMs: 16,
+  };
+}
+
+/** Message serialization */
+export function serializeMessage(message: ServerMessage): string {
+  return JSON.stringify(message);
+}
+
+/** Message parsing */
+export function parseMessage(data: string): ClientMessage | null {
+  try {
+    const parsed = JSON.parse(data);
+    if (typeof parsed === 'object' && parsed !== null && typeof parsed.type === 'string') {
+      return parsed as ClientMessage;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+```
+
+### Step 5: Create the Standalone Server
+
+Create `src/server/server.ts`:
+
+```typescript
+/**
+ * @fileoverview Standalone WebSocket server for My App.
+ */
+
+import { SessionRuntime } from '@gesture-app/framework-server';
+import { type WebSocket, WebSocketServer } from 'ws';
+import type {
+  ClientMessage,
+  ServerMessage,
+  MyAppWelcomeData,
+  MyAppResetData,
+} from '../shared/protocol.js';
+import {
+  MyAppHooks,
+  createMyAppConfig,
+  serializeMessage,
+  parseMessage,
+} from './MyAppSession.js';
+
+// biome-ignore lint/complexity/useLiteralKeys: Required for noPropertyAccessFromIndexSignature
+const PORT = Number(process.env['PORT']) || 8080;
+
+console.log('[MyApp] Starting server...');
+
+const hooks = new MyAppHooks();
+const config = createMyAppConfig();
+
+const runtime = new SessionRuntime<
+  ClientMessage,
+  ServerMessage,
+  MyAppWelcomeData,
+  MyAppResetData
+>(config, hooks, serializeMessage, parseMessage);
+
+const wss = new WebSocketServer({ port: PORT });
+
+console.log(`[MyApp] WebSocket server listening on port ${PORT}`);
+
+wss.on('connection', (ws: WebSocket) => {
+  console.log('[MyApp] New connection');
+
+  const participant = runtime.handleConnection(ws);
+  if (participant) {
+    console.log(`[MyApp] Participant ${participant.id} joined`);
+  }
+
+  ws.on('message', (data: Buffer) => {
+    runtime.handleMessage(ws, data.toString());
+  });
+
+  ws.on('close', () => {
+    console.log('[MyApp] Connection closed');
+    runtime.handleDisconnection(ws);
+  });
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  runtime.stop();
+  wss.close(() => process.exit(0));
+});
+```
+
+### Step 6: Build the Client
+
+Create `client/index.html`:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My App</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <div id="connection-overlay" class="overlay">
+      <h1>My App</h1>
+      <div id="status">Connecting...</div>
+      <div id="manual-connect" style="display: none;">
+        <input type="text" id="ws-url" value="ws://localhost:8080">
+        <button id="connect-btn">Connect</button>
+      </div>
+    </div>
+    
+    <div id="waiting-overlay" class="overlay" style="display: none;">
+      <h2>Waiting for opponent...</h2>
+    </div>
+    
+    <div id="ready-overlay" class="overlay" style="display: none;">
+      <h2>Opponent joined!</h2>
+      <button id="ready-btn">I'm Ready!</button>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+  </div>
+  
+  <script type="module" src="main.ts"></script>
+</body>
+</html>
+```
+
+Create `client/main.ts`:
+
+```typescript
+/**
+ * @fileoverview Client for My App.
+ */
+
+import type { ServerMessage, ClientMessage } from '../src/shared/protocol.js';
+
+// DOM elements
+const connectionOverlay = document.getElementById('connection-overlay')!;
+const waitingOverlay = document.getElementById('waiting-overlay')!;
+const readyOverlay = document.getElementById('ready-overlay')!;
+const status = document.getElementById('status')!;
+const manualConnect = document.getElementById('manual-connect')!;
+const wsUrlInput = document.getElementById('ws-url') as HTMLInputElement;
+const connectBtn = document.getElementById('connect-btn')!;
+const readyBtn = document.getElementById('ready-btn')!;
+const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+const ctx = canvas.getContext('2d');
+if (!ctx) throw new Error('No 2D context');
+
+// State
+let ws: WebSocket | null = null;
+let myColor = 0x4ecdc4;
+let phase: 'connecting' | 'waiting' | 'ready' | 'playing' = 'connecting';
+
+// Initialize
+function init() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  
+  connectBtn.addEventListener('click', () => connect(wsUrlInput.value));
+  readyBtn.addEventListener('click', sendReady);
+  canvas.addEventListener('mousemove', handleMouseMove);
+  
+  tryAutoConnect();
+  requestAnimationFrame(render);
+}
+
+async function tryAutoConnect() {
+  try {
+    const res = await fetch('/session.json');
+    if (res.ok) {
+      const config = await res.json();
+      if (config.wsUrl) {
+        connect(config.wsUrl);
+        return;
+      }
+    }
+  } catch {}
+  
+  // Show manual connect for local dev
+  if (location.hostname === 'localhost') {
+    status.textContent = 'Local development';
+    manualConnect.style.display = 'block';
+  }
+}
+
+function connect(url: string) {
+  status.textContent = 'Connecting...';
+  ws = new WebSocket(url);
+  
+  ws.onopen = () => status.textContent = 'Connected!';
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  ws.onclose = () => {
+    status.textContent = 'Disconnected';
+    manualConnect.style.display = 'block';
+  };
+}
+
+function send(msg: ClientMessage) {
+  ws?.send(JSON.stringify(msg));
+}
+
+function handleMessage(msg: ServerMessage & { type: string }) {
+  switch (msg.type) {
+    case 'welcome':
+      myColor = (msg as any).color;
+      phase = 'waiting';
+      showOverlay('waiting');
+      break;
+      
+    case 'opponent_joined':
+      phase = 'ready';
+      showOverlay('ready');
+      break;
+      
+    case 'session_started':
+      phase = 'playing';
+      showOverlay(null);
+      break;
+      
+    case 'position_broadcast':
+      // Handle opponent's position update
+      break;
+  }
+}
+
+function showOverlay(name: string | null) {
+  connectionOverlay.style.display = name === 'connection' ? 'flex' : 'none';
+  waitingOverlay.style.display = name === 'waiting' ? 'flex' : 'none';
+  readyOverlay.style.display = name === 'ready' ? 'flex' : 'none';
+}
+
+function sendReady() {
+  send({ type: 'participant_ready' } as any);
+  readyBtn.textContent = 'Waiting...';
+  readyBtn.disabled = true;
+}
+
+function handleMouseMove(e: MouseEvent) {
+  if (phase === 'playing') {
+    send({
+      type: 'position_update',
+      position: {
+        x: e.clientX / canvas.width,
+        y: e.clientY / canvas.height,
+      },
+    });
+  }
+}
+
+function render() {
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Your rendering logic here
+  
+  requestAnimationFrame(render);
+}
+
+init();
+```
+
+### Step 7: Register in the Lobby
+
+Add your app to `packages/lobby/src/index.ts`:
+
+```typescript
+// Import apps to register them
+import '@gesture-app/blocks-cannons';
+import '@gesture-app/hello-hands';
+import '@gesture-app/my-app';  // Add this line
+```
+
+And add the dependency to `packages/lobby/package.json`:
+
+```json
+{
+  "dependencies": {
+    "@gesture-app/my-app": "*"
+  }
+}
+```
+
+### Step 8: Create Docker Configuration
+
+Create `docker/Dockerfile`:
+
+```dockerfile
+FROM node:22-alpine AS builder
+WORKDIR /build
+COPY package*.json ./
+COPY packages/framework/protocol/package.json packages/framework/protocol/
+COPY packages/framework/server/package.json packages/framework/server/
+COPY packages/applications/my-app/package.json packages/applications/my-app/
+
+RUN npm install --workspace=@gesture-app/framework-protocol \
+    --workspace=@gesture-app/framework-server \
+    --workspace=@gesture-app/my-app
+
+COPY packages/framework/protocol packages/framework/protocol
+COPY packages/framework/server packages/framework/server
+COPY packages/applications/my-app packages/applications/my-app
+COPY tsconfig.base.json ./
+
+RUN npm run build --workspace=@gesture-app/framework-protocol
+RUN npm run build --workspace=@gesture-app/framework-server
+RUN npm run build --workspace=@gesture-app/my-app
+RUN npm run build:client --workspace=@gesture-app/my-app
+
+FROM node:22-alpine
+RUN apk add --no-cache nginx
+WORKDIR /app
+
+COPY --from=builder /build/packages/framework/protocol/dist ./packages/framework/protocol/dist
+COPY --from=builder /build/packages/framework/protocol/package.json ./packages/framework/protocol/
+COPY --from=builder /build/packages/framework/server/dist ./packages/framework/server/dist
+COPY --from=builder /build/packages/framework/server/package.json ./packages/framework/server/
+COPY --from=builder /build/packages/applications/my-app/dist ./packages/applications/my-app/dist
+COPY --from=builder /build/packages/applications/my-app/package.json ./packages/applications/my-app/
+COPY --from=builder /build/packages/applications/my-app/dist/client /usr/share/nginx/html
+
+COPY packages/applications/my-app/docker/nginx.conf /etc/nginx/nginx.conf
+COPY packages/applications/my-app/docker/entrypoint.sh /app/entrypoint.sh
+
+COPY package*.json ./
+RUN npm install --workspace=@gesture-app/framework-protocol \
+    --workspace=@gesture-app/framework-server \
+    --workspace=@gesture-app/my-app \
+    --omit=dev
+
+RUN chmod +x /app/entrypoint.sh
+
+ENV PORT=8080
+ENV SESSION_ID=""
+ENV APP_ID="my-app"
+ENV LOBBY_URL="https://gestures-apps.dx-tooling.org"
+
+EXPOSE 80
+CMD ["/app/entrypoint.sh"]
+```
+
+Create `docker/entrypoint.sh`:
+
+```bash
+#!/bin/sh
+set -e
+
+echo "=== My App Session Container ==="
+echo "SESSION_ID: ${SESSION_ID:-not set}"
+echo "APP_ID: ${APP_ID:-my-app}"
+
+LOBBY_URL="${LOBBY_URL:-https://gestures-apps.dx-tooling.org}"
+WS_URL="wss://${SESSION_ID}-${APP_ID}-gestures.dx-tooling.org/ws"
+
+cat > /usr/share/nginx/html/session.json << EOF
+{
+  "appId": "${APP_ID}",
+  "sessionId": "${SESSION_ID}",
+  "wsUrl": "${WS_URL}",
+  "lobbyUrl": "${LOBBY_URL}"
+}
+EOF
+
+nginx
+cd /app/packages/applications/my-app
+exec node dist/server/server.js
+```
+
+Create `docker/nginx.conf`:
+
+```nginx
+worker_processes auto;
+events { worker_connections 1024; }
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+
+    server {
+        listen 80;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location = /session.json {
+            add_header Cache-Control "no-cache";
+        }
+
+        location /ws {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_read_timeout 86400;
+        }
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+}
+```
+
+## Testing Your App
+
+### Run Tests
+
+```bash
+cd packages/applications/my-app
+npm test
+```
+
+### Local Development
+
+**Terminal 1 - Server:**
+```bash
+npm run dev
+```
+
+**Terminal 2 - Client:**
+```bash
+cd client && npx vite
+```
+
+Open two browser windows to test the two-participant flow.
+
+### Via Lobby
+
+```bash
+# Start lobby
+cd packages/lobby && npm run dev
+
+# Create a session
+curl -X POST http://localhost:3002/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"appId": "my-app", "opponentType": "human"}'
+```
+
+## Framework Lifecycle
+
+Understanding the session lifecycle helps you build the right UX:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Session Lifecycle                         │
+│                                                              │
+│   WAITING ──────────────────────────────────────────────────│
+│     │                                                        │
+│     │  Participant 1 joins                                   │
+│     │  → onParticipantJoin() called                          │
+│     │  → Welcome message sent                                │
+│     │                                                        │
+│     │  Participant 2 joins                                   │
+│     │  → onParticipantJoin() called                          │
+│     │  → opponent_joined sent to both                        │
+│     │                                                        │
+│     │  Both send participant_ready                           │
+│     ▼                                                        │
+│   PLAYING ──────────────────────────────────────────────────│
+│     │                                                        │
+│     │  → onSessionStart() called                             │
+│     │  → session_started sent to both                        │
+│     │                                                        │
+│     │  App messages flow:                                    │
+│     │  Client → onMessage() → responses → Clients            │
+│     │                                                        │
+│     │  If tickEnabled: onTick() called at tickIntervalMs     │
+│     │  If checkSessionEnd() returns winner:                  │
+│     ▼                                                        │
+│   FINISHED ─────────────────────────────────────────────────│
+│     │                                                        │
+│     │  → session_ended sent with winner info                 │
+│     │                                                        │
+│     │  Both send play_again_vote                             │
+│     │  → play_again_status updates sent                      │
+│     │  → onReset() called                                    │
+│     │  → session_reset sent                                  │
+│     │                                                        │
+│     └──────────────────────► Back to WAITING                 │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## AppHooks Reference
+
+| Method | When Called | Return |
+|--------|------------|--------|
+| `generateParticipantId(number)` | New connection | Unique participant ID |
+| `onParticipantJoin(participant)` | After connection accepted | Welcome data for client |
+| `onParticipantLeave(id)` | Connection closed | void |
+| `onMessage(msg, senderId, phase)` | Client message received | Array of responses to route |
+| `onSessionStart()` | Both participants ready | void |
+| `onReset()` | All voted to play again | Reset data for clients |
+| `onTick?(deltaTime)` | Each tick (if enabled) | Messages to broadcast |
+| `checkSessionEnd?()` | Each tick (if enabled) | Winner info or null |
+
+## Message Routing
+
+The `onMessage` handler returns an array of `MessageResponse` objects:
+
+```typescript
+interface MessageResponse<T> {
+  target: 'sender' | 'opponent' | 'all';
+  message: T;
+}
+```
+
+| Target | Description |
+|--------|-------------|
+| `sender` | Only the participant who sent the message |
+| `opponent` | Only the other participant |
+| `all` | Both participants |
+
+## Tips
+
+1. **Keep shared types minimal** - Only include what both client and server need
+2. **Use Zod for validation** - Parse incoming messages before trusting them
+3. **Handle all phases** - Your client should gracefully handle waiting, ready, playing, and finished states
+4. **Test with two windows** - Always test the two-participant flow locally
+5. **Log on the server** - Console logs help debug session lifecycle issues
+
+## Example Apps
+
+- **hello-hands** - Minimal demo (hand position sharing + wave)
+- **blocks-cannons** - Full game (3D rendering, game state, bot AI)
+
+Refer to `packages/applications/hello-hands/` for a clean, minimal reference implementation.
+

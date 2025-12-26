@@ -1,5 +1,10 @@
 import { createServer } from './server.js';
 
+// Import apps to register them with the global registry
+// Each app auto-registers when imported
+import '@gesture-app/blocks-cannons';
+import '@gesture-app/hello-hands';
+
 // biome-ignore lint/complexity/useLiteralKeys: Required for noPropertyAccessFromIndexSignature
 const PORT = Number(process.env['PORT']) || 3002;
 

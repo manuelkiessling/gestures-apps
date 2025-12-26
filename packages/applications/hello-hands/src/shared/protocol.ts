@@ -7,6 +7,9 @@
 import { z } from 'zod';
 import type { HandState, ParticipantId } from './types.js';
 
+// Re-export HandState for consumers
+export type { HandState } from './types.js';
+
 // ============ Schemas ============
 
 export const Position2DSchema = z.object({
