@@ -1,6 +1,6 @@
 # Gesture Apps Framework
 
-[![Validate](https://github.com/manuelkiessling/hands-blocks-cannons/actions/workflows/validate.yml/badge.svg)](https://github.com/manuelkiessling/hands-blocks-cannons/actions/workflows/validate.yml)
+[![Validate](https://github.com/manuelkiessling/gestures-apps/actions/workflows/validate.yml/badge.svg)](https://github.com/manuelkiessling/gestures-apps/actions/workflows/validate.yml)
 
 A TypeScript framework for building two-participant, browser-based applications controlled by hand gestures via webcam. The framework handles session management, WebSocket communication, participant lifecycle, and provides MediaPipe-based hand tracking out of the box.
 
@@ -50,7 +50,7 @@ You write the application logic (game rules, rendering, custom gestures); the fr
 ## Project Structure
 
 ```
-hands-blocks-cannons/
+gestures-apps/
 ├── packages/
 │   ├── framework/
 │   │   ├── protocol/     # Shared types, schemas, message definitions
@@ -105,8 +105,8 @@ mise use
 ### Installation
 
 ```bash
-git clone https://github.com/manuelkiessling/hands-blocks-cannons.git
-cd hands-blocks-cannons
+git clone https://github.com/manuelkiessling/gestures-apps.git
+cd gestures-apps
 npm install
 ```
 
