@@ -1,5 +1,12 @@
+/**
+ * @fileoverview Tests for InactivityMonitor.
+ *
+ * Tests the inactivity monitoring that enables automatic cleanup
+ * of session containers when idle.
+ */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { InactivityMonitor } from '../../src/server/utils/InactivityMonitor.js';
+import { InactivityMonitor } from '../src/InactivityMonitor.js';
 
 describe('InactivityMonitor', () => {
   beforeEach(() => {
@@ -24,7 +31,7 @@ describe('InactivityMonitor', () => {
 
       expect(onShutdown).toHaveBeenCalledTimes(1);
       expect(onShutdown).toHaveBeenCalledWith(
-        expect.stringContaining('No players connected within')
+        expect.stringContaining('No participants connected within')
       );
 
       monitor.stop();
@@ -48,7 +55,7 @@ describe('InactivityMonitor', () => {
   });
 
   describe('connection tracking', () => {
-    it('should not trigger startup timeout if player connects and stays active', () => {
+    it('should not trigger startup timeout if participant connects and stays active', () => {
       const onShutdown = vi.fn();
       const monitor = new InactivityMonitor({
         timeoutMs: 5000,
@@ -56,7 +63,7 @@ describe('InactivityMonitor', () => {
         onShutdown,
       });
 
-      // Player connects before timeout
+      // Participant connects before timeout
       vi.advanceTimersByTime(2000);
       monitor.recordConnection(true);
 
@@ -70,14 +77,14 @@ describe('InactivityMonitor', () => {
       vi.advanceTimersByTime(2000);
       monitor.recordActivity();
 
-      // Total time: 8 seconds - past startup timeout, but player is active
-      // Should not have triggered because player is connected and active
+      // Total time: 8 seconds - past startup timeout, but participant is active
+      // Should not have triggered because participant is connected and active
       expect(onShutdown).not.toHaveBeenCalled();
 
       monitor.stop();
     });
 
-    it('should trigger shutdown when all players disconnect for timeout period', () => {
+    it('should trigger shutdown when all participants disconnect for timeout period', () => {
       const onShutdown = vi.fn();
       const monitor = new InactivityMonitor({
         timeoutMs: 5000,
@@ -85,23 +92,25 @@ describe('InactivityMonitor', () => {
         onShutdown,
       });
 
-      // Player connects
+      // Participant connects
       monitor.recordConnection(true);
       vi.advanceTimersByTime(1000);
 
-      // Player disconnects
+      // Participant disconnects
       monitor.recordConnection(false);
 
       // Advance past timeout
       vi.advanceTimersByTime(6000);
 
       expect(onShutdown).toHaveBeenCalledTimes(1);
-      expect(onShutdown).toHaveBeenCalledWith(expect.stringContaining('No players connected for'));
+      expect(onShutdown).toHaveBeenCalledWith(
+        expect.stringContaining('No participants connected for')
+      );
 
       monitor.stop();
     });
 
-    it('should trigger shutdown if player is connected but inactive', () => {
+    it('should trigger shutdown if participant is connected but inactive', () => {
       const onShutdown = vi.fn();
       const monitor = new InactivityMonitor({
         timeoutMs: 5000,
@@ -109,10 +118,10 @@ describe('InactivityMonitor', () => {
         onShutdown,
       });
 
-      // Player connects
+      // Participant connects
       monitor.recordConnection(true);
 
-      // Player does nothing for timeout period
+      // Participant does nothing for timeout period
       vi.advanceTimersByTime(6000);
 
       expect(onShutdown).toHaveBeenCalledTimes(1);
@@ -149,6 +158,26 @@ describe('InactivityMonitor', () => {
 
       monitor.stop();
     });
+
+    it('should track hasHadConnection correctly', () => {
+      const onShutdown = vi.fn();
+      const monitor = new InactivityMonitor({
+        timeoutMs: 5000,
+        checkIntervalMs: 1000,
+        onShutdown,
+      });
+
+      expect(monitor.hasHadConnection()).toBe(false);
+
+      monitor.recordConnection(true);
+      expect(monitor.hasHadConnection()).toBe(true);
+
+      // Even after disconnect, hasHadConnection stays true
+      monitor.recordConnection(false);
+      expect(monitor.hasHadConnection()).toBe(true);
+
+      monitor.stop();
+    });
   });
 
   describe('activity tracking', () => {
@@ -160,7 +189,7 @@ describe('InactivityMonitor', () => {
         onShutdown,
       });
 
-      // Player connects
+      // Participant connects
       monitor.recordConnection(true);
 
       // Wait 3 seconds
@@ -202,6 +231,53 @@ describe('InactivityMonitor', () => {
 
       // Should not have triggered because monitor was stopped
       expect(onShutdown).not.toHaveBeenCalled();
+    });
+
+    it('should be safe to call stop() multiple times', () => {
+      const onShutdown = vi.fn();
+      const monitor = new InactivityMonitor({
+        timeoutMs: 5000,
+        checkIntervalMs: 1000,
+        onShutdown,
+      });
+
+      // Stop multiple times should not throw
+      monitor.stop();
+      monitor.stop();
+      monitor.stop();
+
+      expect(onShutdown).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('custom logger', () => {
+    it('should use provided logger', () => {
+      const infoSpy = vi.fn();
+      const debugSpy = vi.fn();
+
+      const monitor = new InactivityMonitor({
+        timeoutMs: 5000,
+        checkIntervalMs: 1000,
+        onShutdown: vi.fn(),
+        logger: {
+          info: infoSpy,
+          debug: debugSpy,
+        },
+      });
+
+      // Should have logged startup
+      expect(infoSpy).toHaveBeenCalledWith(
+        'Inactivity monitor started',
+        expect.objectContaining({
+          timeoutMs: 5000,
+          checkIntervalMs: 1000,
+        })
+      );
+
+      monitor.stop();
+
+      // Should have logged stop
+      expect(infoSpy).toHaveBeenCalledWith('Inactivity monitor stopped');
     });
   });
 });

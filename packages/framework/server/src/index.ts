@@ -8,6 +8,7 @@
  * - Lifecycle gating (waiting → playing → finished)
  * - Message routing (sender/opponent/all)
  * - Play-again voting and reset coordination
+ * - Inactivity monitoring (auto-cleanup)
  */
 
 import type {
@@ -25,7 +26,16 @@ export {
   type AppServer,
   type AppServerConfig,
   createAppServer,
+  type InactivityConfig,
 } from './createAppServer.js';
+// Export inactivity monitor
+export {
+  DEFAULT_INACTIVITY_CHECK_INTERVAL_MS,
+  DEFAULT_INACTIVITY_TIMEOUT_MS,
+  type InactivityLogger,
+  InactivityMonitor,
+  type InactivityMonitorConfig,
+} from './InactivityMonitor.js';
 // Export session runtime
 export {
   type AppHooks,

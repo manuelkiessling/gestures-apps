@@ -35,5 +35,7 @@ export * from './bot/BotMovement.js';
 export type { GameConfigYaml } from './config/gameConfig.js';
 export { clearConfigCache, loadGameConfig } from './config/gameConfig.js';
 export * from './game/index.js';
-export { InactivityMonitor, type InactivityMonitorConfig } from './utils/InactivityMonitor.js';
 export { logger } from './utils/logger.js';
+
+// Note: InactivityMonitor has been moved to @gesture-app/framework-server
+// and is now automatically integrated via createAppServer

@@ -1,5 +1,8 @@
 /**
- * @fileoverview Blocks & Cannons server powered by framework SessionRuntime.
+ * @fileoverview Blocks & Cannons server powered by framework createAppServer.
+ *
+ * Uses the framework's built-in inactivity monitoring for automatic
+ * container cleanup when idle.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -10,13 +13,12 @@ import type {
 } from '@gesture-app/framework-protocol';
 import {
   type AppHooks,
-  type Connection,
+  createAppServer,
   DEFAULT_RUNTIME_CONFIG,
   type MessageResponse,
-  SessionRuntime,
   type SessionRuntimeConfig,
 } from '@gesture-app/framework-server';
-import { type WebSocket, WebSocketServer } from 'ws';
+import { WebSocketServer } from 'ws';
 import {
   type ServerMessage as AppServerMessage,
   type BlocksOpponentJoinedData,
@@ -30,14 +32,13 @@ import { GameState } from './game/GameState.js';
 import {
   CAMERA_DISTANCE,
   DEFAULT_ROOM,
+  INACTIVITY_CHECK_INTERVAL_MS,
+  INACTIVITY_TIMEOUT_MS,
   PROJECTILE_SIZE,
   TICK_RATE_MS,
   WALL_GRID_CONFIG,
 } from './game/types.js';
 import { logger } from './utils/logger.js';
-
-// biome-ignore lint/complexity/useLiteralKeys: Required for noPropertyAccessFromIndexSignature
-const PORT = Number(process.env['PORT']) || 3001;
 
 interface RuntimeConfig extends SessionRuntimeConfig {
   /** Enable cannon auto fire loop */
@@ -345,10 +346,12 @@ class BlocksCannonsHooks
 
 // ============ Server Setup ============
 
-logger.info('Starting Blocks & Cannons server (SessionRuntime)...');
+logger.info('Starting Blocks & Cannons server...');
 
 const hooks = new BlocksCannonsHooks(GameState.create());
-const runtime = new SessionRuntime<
+
+// Create server with built-in inactivity monitoring
+createAppServer<
   ClientMessage,
   AppServerMessage,
   BlocksWelcomeData,
@@ -356,49 +359,21 @@ const runtime = new SessionRuntime<
   BlocksOpponentJoinedData,
   BlocksSessionEndedData
 >(
-  RUNTIME_CONFIG,
-  hooks,
-  (message) => JSON.stringify(message),
-  (data) => parseClientMessage(JSON.parse(data) as unknown)
+  {
+    runtimeConfig: RUNTIME_CONFIG,
+    hooks,
+    parser: (data) => parseClientMessage(JSON.parse(data) as unknown),
+    logger: {
+      info: (msg, data) => logger.info(msg, data as Record<string, unknown>),
+      error: (msg, data) => logger.error(msg, data as Record<string, unknown>),
+      debug: (msg, data) => logger.debug(msg, data as Record<string, unknown>),
+    },
+    // Use app-specific inactivity settings from game.yaml
+    inactivity: {
+      enabled: true,
+      timeoutMs: INACTIVITY_TIMEOUT_MS,
+      checkIntervalMs: INACTIVITY_CHECK_INTERVAL_MS,
+    },
+  },
+  WebSocketServer
 );
-
-const wss = new WebSocketServer({ port: PORT });
-
-logger.info(`WebSocket server listening on port ${PORT}`);
-
-wss.on('connection', (ws: WebSocket) => {
-  const participant = runtime.handleConnection(ws as unknown as Connection);
-  if (!participant) return;
-
-  wss.emit('connection_handled');
-
-  ws.on('message', (data: Buffer) => {
-    runtime.handleMessage(ws as unknown as Connection, data.toString());
-  });
-
-  ws.on('close', () => {
-    runtime.handleDisconnection(ws as unknown as Connection);
-  });
-
-  ws.on('error', (error: unknown) => {
-    logger.error('WebSocket error', { error });
-  });
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down...');
-  runtime.stop();
-  wss.close(() => {
-    logger.info('Server stopped');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down...');
-  runtime.stop();
-  wss.close(() => {
-    process.exit(0);
-  });
-});

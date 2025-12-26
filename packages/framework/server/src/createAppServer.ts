@@ -6,10 +6,35 @@
  * - Connection handling
  * - Message routing
  * - Graceful shutdown
+ * - Inactivity monitoring (auto-cleanup)
  */
 
+import {
+  DEFAULT_INACTIVITY_CHECK_INTERVAL_MS,
+  DEFAULT_INACTIVITY_TIMEOUT_MS,
+  InactivityMonitor,
+} from './InactivityMonitor.js';
 import type { AppHooks, Connection, SessionRuntimeConfig } from './SessionRuntime.js';
 import { SessionRuntime } from './SessionRuntime.js';
+
+/**
+ * Inactivity monitoring configuration.
+ */
+export interface InactivityConfig {
+  /** Enable inactivity monitoring (default: true) */
+  readonly enabled?: boolean;
+  /** Timeout in milliseconds before shutdown (default: 300000 = 5 min) */
+  readonly timeoutMs?: number;
+  /** Interval in milliseconds between checks (default: 30000 = 30 sec) */
+  readonly checkIntervalMs?: number;
+  /**
+   * Message types to ignore when tracking activity.
+   * Useful for apps with continuous streaming (e.g., hand tracking).
+   * Messages with these types won't reset the inactivity timer.
+   * @example ['hand_update'] - ignore hand tracking updates
+   */
+  readonly ignoreMessageTypes?: readonly string[];
+}
 
 /**
  * Configuration for creating an app server.
@@ -48,7 +73,15 @@ export interface AppServerConfig<
   readonly logger?: {
     info: (message: string, data?: object) => void;
     error: (message: string, data?: object) => void;
+    debug?: (message: string, data?: object) => void;
   };
+
+  /**
+   * Inactivity monitoring configuration.
+   * Enabled by default to auto-cleanup idle session containers.
+   * Pass { enabled: false } to disable.
+   */
+  readonly inactivity?: InactivityConfig;
 }
 
 /**
@@ -77,6 +110,9 @@ export interface AppServer<
 
   /** Port the server is listening on */
   readonly port: number;
+
+  /** Inactivity monitor (if enabled) */
+  readonly inactivityMonitor?: InactivityMonitor;
 }
 
 /**
@@ -102,18 +138,24 @@ interface WebSocketServerConstructor {
 /**
  * Create and start an app server with minimal boilerplate.
  *
+ * Features automatic inactivity monitoring that shuts down the server
+ * (and thus the container) after a period of inactivity. This is enabled
+ * by default with a 5-minute timeout.
+ *
  * @example
  * ```typescript
  * import { createAppServer } from '@gesture-app/framework-server';
  * import { WebSocketServer } from 'ws';
  *
- * const server = await createAppServer({
+ * const server = createAppServer({
  *   port: 3001,
  *   runtimeConfig: { maxParticipants: 2, tickEnabled: false, tickIntervalMs: 16 },
  *   hooks: new MyAppHooks(),
  *   parser: (data) => parseClientMessage(JSON.parse(data)),
- *   WebSocketServer,
- * });
+ *   // Inactivity monitoring enabled by default (5 min timeout)
+ *   // To customize: inactivity: { timeoutMs: 600000 }
+ *   // To disable: inactivity: { enabled: false }
+ * }, WebSocketServer);
  *
  * // Later: graceful shutdown
  * await server.stop();
@@ -152,6 +194,13 @@ export function createAppServer<
   };
   const serializer = config.serializer ?? ((msg: object) => JSON.stringify(msg));
 
+  // Inactivity config - enabled by default
+  const inactivityEnabled = config.inactivity?.enabled !== false;
+  const inactivityTimeoutMs = config.inactivity?.timeoutMs ?? DEFAULT_INACTIVITY_TIMEOUT_MS;
+  const inactivityCheckIntervalMs =
+    config.inactivity?.checkIntervalMs ?? DEFAULT_INACTIVITY_CHECK_INTERVAL_MS;
+  const ignoreMessageTypes = new Set(config.inactivity?.ignoreMessageTypes ?? []);
+
   logger.info(`Starting server on port ${port}...`);
 
   // Create runtime
@@ -169,31 +218,14 @@ export function createAppServer<
 
   logger.info(`WebSocket server listening on port ${port}`);
 
-  // Handle connections
-  wss.on('connection', (ws: WebSocketLike) => {
-    const participant = runtime.handleConnection(ws as unknown as Connection);
-    if (!participant) return;
-
-    // Emit event for testing
-    wss.emit?.('connection_handled');
-
-    ws.on('message', (data: Buffer | string) => {
-      const message = typeof data === 'string' ? data : data.toString();
-      runtime.handleMessage(ws as unknown as Connection, message);
-    });
-
-    ws.on('close', () => {
-      runtime.handleDisconnection(ws as unknown as Connection);
-    });
-
-    ws.on('error', (error: unknown) => {
-      logger.error('WebSocket error', { error });
-    });
-  });
-
   // Setup graceful shutdown handlers
+  let isShuttingDown = false;
   const shutdown = async (): Promise<void> => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
     logger.info('Shutting down...');
+    inactivityMonitor?.stop();
     runtime.stop();
 
     return new Promise((resolve) => {
@@ -203,6 +235,75 @@ export function createAppServer<
       });
     });
   };
+
+  // Create inactivity monitor if enabled
+  let inactivityMonitor: InactivityMonitor | undefined;
+  if (inactivityEnabled) {
+    inactivityMonitor = new InactivityMonitor({
+      timeoutMs: inactivityTimeoutMs,
+      checkIntervalMs: inactivityCheckIntervalMs,
+      onShutdown: (reason: string) => {
+        logger.info('Inactivity shutdown triggered', { reason });
+        shutdown().then(() => process.exit(0));
+      },
+      logger: {
+        info: logger.info,
+        debug: logger.debug,
+      },
+    });
+
+    logger.info('Inactivity monitoring enabled', {
+      timeoutMs: inactivityTimeoutMs,
+      checkIntervalMs: inactivityCheckIntervalMs,
+    });
+  }
+
+  // Handle connections
+  wss.on('connection', (ws: WebSocketLike) => {
+    // Record connection for inactivity tracking
+    inactivityMonitor?.recordConnection(true);
+
+    const participant = runtime.handleConnection(ws as unknown as Connection);
+    if (!participant) {
+      // Connection was rejected, record disconnection
+      inactivityMonitor?.recordConnection(false);
+      return;
+    }
+
+    // Emit event for testing
+    wss.emit?.('connection_handled');
+
+    ws.on('message', (data: Buffer | string) => {
+      const message = typeof data === 'string' ? data : data.toString();
+
+      // Record activity for inactivity tracking (unless message type is ignored)
+      if (inactivityMonitor && ignoreMessageTypes.size > 0) {
+        try {
+          const parsed = JSON.parse(message) as { type?: string };
+          if (!parsed.type || !ignoreMessageTypes.has(parsed.type)) {
+            inactivityMonitor.recordActivity();
+          }
+        } catch {
+          // If we can't parse, count it as activity
+          inactivityMonitor.recordActivity();
+        }
+      } else {
+        inactivityMonitor?.recordActivity();
+      }
+
+      runtime.handleMessage(ws as unknown as Connection, message);
+    });
+
+    ws.on('close', () => {
+      // Record disconnection for inactivity tracking
+      inactivityMonitor?.recordConnection(false);
+      runtime.handleDisconnection(ws as unknown as Connection);
+    });
+
+    ws.on('error', (error: unknown) => {
+      logger.error('WebSocket error', { error });
+    });
+  });
 
   // Register signal handlers
   const handleSignal = (signal: string) => {
@@ -217,5 +318,6 @@ export function createAppServer<
     runtime,
     port,
     stop: shutdown,
+    inactivityMonitor,
   };
 }
