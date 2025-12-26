@@ -5,10 +5,10 @@
  */
 
 import { z } from 'zod';
-import type { HandState, ParticipantId } from './types.js';
+import type { HandState, ParticipantId, Stroke } from './types.js';
 
-// Re-export HandState for consumers
-export type { HandState } from './types.js';
+// Re-export types for consumers
+export type { HandState, Stroke } from './types.js';
 
 // ============ Schemas ============
 
@@ -50,13 +50,71 @@ export const WaveMessageSchema = z.object({
 });
 
 /**
+ * Client starts drawing a new stroke.
+ */
+export interface DrawStartMessage {
+  type: 'draw_start';
+}
+
+export const DrawStartMessageSchema = z.object({
+  type: z.literal('draw_start'),
+});
+
+/**
+ * Client adds a point to the current stroke.
+ */
+export interface DrawPointMessage {
+  type: 'draw_point';
+  x: number;
+  y: number;
+}
+
+export const DrawPointMessageSchema = z.object({
+  type: z.literal('draw_point'),
+  x: z.number(),
+  y: z.number(),
+});
+
+/**
+ * Client ends the current stroke.
+ */
+export interface DrawEndMessage {
+  type: 'draw_end';
+}
+
+export const DrawEndMessageSchema = z.object({
+  type: z.literal('draw_end'),
+});
+
+/**
+ * Client clears all their own drawings.
+ */
+export interface ClearDrawingsMessage {
+  type: 'clear_drawings';
+}
+
+export const ClearDrawingsMessageSchema = z.object({
+  type: z.literal('clear_drawings'),
+});
+
+/**
  * Union of all client messages.
  */
-export type ClientMessage = HandUpdateMessage | WaveMessage;
+export type ClientMessage =
+  | HandUpdateMessage
+  | WaveMessage
+  | DrawStartMessage
+  | DrawPointMessage
+  | DrawEndMessage
+  | ClearDrawingsMessage;
 
 export const ClientMessageSchema = z.discriminatedUnion('type', [
   HandUpdateMessageSchema,
   WaveMessageSchema,
+  DrawStartMessageSchema,
+  DrawPointMessageSchema,
+  DrawEndMessageSchema,
+  ClearDrawingsMessageSchema,
 ]);
 
 /**
@@ -87,9 +145,49 @@ export interface WaveBroadcastMessage {
 }
 
 /**
+ * Server broadcasts that a participant started drawing.
+ */
+export interface DrawStartBroadcastMessage {
+  type: 'draw_start_broadcast';
+  participantId: ParticipantId;
+}
+
+/**
+ * Server broadcasts a drawing point from a participant.
+ */
+export interface DrawPointBroadcastMessage {
+  type: 'draw_point_broadcast';
+  participantId: ParticipantId;
+  x: number;
+  y: number;
+}
+
+/**
+ * Server broadcasts that a participant ended their stroke.
+ */
+export interface DrawEndBroadcastMessage {
+  type: 'draw_end_broadcast';
+  participantId: ParticipantId;
+}
+
+/**
+ * Server broadcasts that a participant cleared their drawings.
+ */
+export interface ClearDrawingsBroadcastMessage {
+  type: 'clear_drawings_broadcast';
+  participantId: ParticipantId;
+}
+
+/**
  * Union of all server messages.
  */
-export type ServerMessage = HandBroadcastMessage | WaveBroadcastMessage;
+export type ServerMessage =
+  | HandBroadcastMessage
+  | WaveBroadcastMessage
+  | DrawStartBroadcastMessage
+  | DrawPointBroadcastMessage
+  | DrawEndBroadcastMessage
+  | ClearDrawingsBroadcastMessage;
 
 /**
  * Serialize a server message to JSON string.
@@ -108,6 +206,8 @@ export interface HelloHandsWelcomeData {
   color: number;
   /** Color of the opponent (if present) */
   opponentColor?: number;
+  /** Existing strokes on the canvas (for late joiners) */
+  strokes?: Stroke[];
 }
 
 // ============ Reset Data ============

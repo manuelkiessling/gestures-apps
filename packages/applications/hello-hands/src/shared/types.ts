@@ -58,3 +58,13 @@ export const PARTICIPANT_COLORS: Record<ParticipantNumber, number> = {
 export function getParticipantColor(number: ParticipantNumber): number {
   return PARTICIPANT_COLORS[number];
 }
+
+/**
+ * A stroke drawn by a participant (series of connected points).
+ */
+export interface Stroke {
+  /** The participant who drew this stroke */
+  readonly participantId: ParticipantId;
+  /** Points making up the stroke (normalized 0-1 coordinates) */
+  readonly points: Position2D[];
+}

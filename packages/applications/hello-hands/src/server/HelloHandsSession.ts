@@ -23,7 +23,16 @@ import type {
   HelloHandsWelcomeData,
   ServerMessage,
 } from '../shared/protocol.js';
+import type { Position2D, Stroke } from '../shared/types.js';
 import { getParticipantColor } from '../shared/types.js';
+
+/**
+ * Active stroke being drawn by a participant.
+ */
+interface ActiveStroke {
+  participantId: ParticipantId;
+  points: Position2D[];
+}
 
 /**
  * Session state for Hello Hands.
@@ -31,6 +40,10 @@ import { getParticipantColor } from '../shared/types.js';
 interface HelloHandsState {
   /** Current hand states by participant ID */
   handStates: Map<ParticipantId, HandState>;
+  /** Completed strokes drawn by participants */
+  strokes: Stroke[];
+  /** Currently active strokes (being drawn) by participant ID */
+  activeStrokes: Map<ParticipantId, ActiveStroke>;
 }
 
 /**
@@ -39,6 +52,8 @@ interface HelloHandsState {
 function createInitialState(): HelloHandsState {
   return {
     handStates: new Map(),
+    strokes: [],
+    activeStrokes: new Map(),
   };
 }
 
@@ -71,12 +86,19 @@ export class HelloHandsHooks
     return {
       color,
       opponentColor,
+      strokes: this.state.strokes.length > 0 ? this.state.strokes : undefined,
     };
   }
 
   onParticipantLeave(participantId: ParticipantId): void {
     this.state.handStates.delete(participantId);
     this.participantColors.delete(participantId);
+    // Clean up any active stroke
+    this.state.activeStrokes.delete(participantId);
+    // Remove all strokes by this participant
+    this.state.strokes = this.state.strokes.filter(
+      (stroke) => stroke.participantId !== participantId
+    );
   }
 
   onMessage(
@@ -108,6 +130,79 @@ export class HelloHandsHooks
             target: 'opponent',
             message: {
               type: 'wave_broadcast',
+              participantId: senderId,
+            },
+          },
+        ];
+
+      case 'draw_start':
+        // Start a new stroke for this participant
+        this.state.activeStrokes.set(senderId, {
+          participantId: senderId,
+          points: [],
+        });
+        return [
+          {
+            target: 'opponent',
+            message: {
+              type: 'draw_start_broadcast',
+              participantId: senderId,
+            },
+          },
+        ];
+
+      case 'draw_point': {
+        // Add point to active stroke
+        const activeStroke = this.state.activeStrokes.get(senderId);
+        if (activeStroke) {
+          activeStroke.points.push({ x: message.x, y: message.y });
+        }
+        return [
+          {
+            target: 'opponent',
+            message: {
+              type: 'draw_point_broadcast',
+              participantId: senderId,
+              x: message.x,
+              y: message.y,
+            },
+          },
+        ];
+      }
+
+      case 'draw_end': {
+        // Finalize the stroke
+        const completedStroke = this.state.activeStrokes.get(senderId);
+        if (completedStroke && completedStroke.points.length > 0) {
+          this.state.strokes.push({
+            participantId: completedStroke.participantId,
+            points: completedStroke.points,
+          });
+        }
+        this.state.activeStrokes.delete(senderId);
+        return [
+          {
+            target: 'opponent',
+            message: {
+              type: 'draw_end_broadcast',
+              participantId: senderId,
+            },
+          },
+        ];
+      }
+
+      case 'clear_drawings':
+        // Remove all strokes by this sender
+        this.state.strokes = this.state.strokes.filter(
+          (stroke) => stroke.participantId !== senderId
+        );
+        // Also clear any active stroke
+        this.state.activeStrokes.delete(senderId);
+        return [
+          {
+            target: 'opponent',
+            message: {
+              type: 'clear_drawings_broadcast',
               participantId: senderId,
             },
           },

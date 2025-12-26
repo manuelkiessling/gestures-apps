@@ -14,7 +14,9 @@ import type {
   HelloHandsResetData,
   HelloHandsWelcomeData,
   ServerMessage,
+  Stroke,
 } from '../src/shared/protocol.js';
+import type { Position2D } from '../src/shared/types.js';
 import { PARTICIPANT_COLORS } from '../src/shared/types.js';
 import {
   extractLandmarks2D,
@@ -52,6 +54,7 @@ const cameraBtn = document.getElementById('camera-btn') as HTMLButtonElement;
 const participantInfo = document.getElementById('participant-info') as HTMLParagraphElement;
 const readyStatus = document.getElementById('ready-status') as HTMLParagraphElement;
 const waveBtn = document.getElementById('wave-btn') as HTMLButtonElement;
+const clearBtn = document.getElementById('clear-btn') as HTMLButtonElement;
 const myColorIndicator = document.getElementById('my-color') as HTMLDivElement;
 const friendColorIndicator = document.getElementById('friend-color') as HTMLDivElement;
 
@@ -67,6 +70,13 @@ interface LocalHandState extends HandState {
   landmarks?: { x: number; y: number }[];
 }
 
+/** Local stroke being drawn (includes color for rendering) */
+interface LocalStroke {
+  participantId: ParticipantId;
+  color: number;
+  points: Position2D[];
+}
+
 interface AppState {
   handTracker: HandTracker | null;
   participantId: ParticipantId | null;
@@ -79,6 +89,11 @@ interface AppState {
   hasOpponent: boolean;
   isHandRaised: boolean;
   lastWaveTime: number;
+  // Drawing state
+  strokes: LocalStroke[];
+  activeStrokes: Map<ParticipantId, LocalStroke>;
+  isDrawing: boolean;
+  wasPinching: boolean;
 }
 
 const state: AppState = {
@@ -93,6 +108,11 @@ const state: AppState = {
   hasOpponent: false,
   isHandRaised: false,
   lastWaveTime: 0,
+  // Drawing state
+  strokes: [],
+  activeStrokes: new Map(),
+  isDrawing: false,
+  wasPinching: false,
 };
 
 // Throttle hand updates to avoid flooding the server
@@ -128,6 +148,7 @@ function init(): void {
   connectBtn.addEventListener('click', handleManualConnect);
   cameraBtn.addEventListener('click', handleCameraPermission);
   waveBtn.addEventListener('click', handleWave);
+  clearBtn.addEventListener('click', handleClearDrawings);
 
   // Try auto-connect
   tryAutoConnect();
@@ -258,8 +279,15 @@ function handleHandsUpdate(hands: readonly TrackedHand[]): void {
         type: 'hand_update',
         handState: state.myHandState,
       });
+
+      // Handle drawing with pinch gesture
+      handleDrawing(state.myHandState);
     }
   } else {
+    // Hand lost - end any active drawing
+    if (state.isDrawing) {
+      endDrawing();
+    }
     trackingIndicator.className = 'lost';
     trackingText.textContent = 'No hand detected';
     state.myHandState = null;
@@ -332,6 +360,15 @@ function handleSessionJoin(data: {
 
   participantInfo.textContent = `You are participant ${data.participantNumber}`;
 
+  // Load existing strokes (for late joiners)
+  if (data.appData.strokes && data.appData.strokes.length > 0) {
+    state.strokes = data.appData.strokes.map((stroke: Stroke) => ({
+      participantId: stroke.participantId,
+      color: stroke.participantId === state.participantId ? state.myColor : state.friendColor,
+      points: [...stroke.points],
+    }));
+  }
+
   // Show camera permission overlay
   state.phase = 'camera';
   showOverlay('camera');
@@ -373,6 +410,11 @@ function handleSessionReset(appData?: HelloHandsResetData): void {
   state.phase = 'ready';
   state.friendHandState = null;
   state.isHandRaised = false;
+  // Clear all drawings on reset
+  state.strokes = [];
+  state.activeStrokes.clear();
+  state.isDrawing = false;
+  state.wasPinching = false;
   if (appData?.message) {
     readyStatus.textContent = appData.message;
   }
@@ -386,6 +428,38 @@ function handleAppMessage(message: ServerMessage): void {
       break;
     case 'wave_broadcast':
       showWaveNotification();
+      break;
+    case 'draw_start_broadcast':
+      // Friend started drawing - create their active stroke
+      state.activeStrokes.set(message.participantId, {
+        participantId: message.participantId,
+        color: state.friendColor,
+        points: [],
+      });
+      break;
+    case 'draw_point_broadcast': {
+      // Add point to friend's active stroke
+      const stroke = state.activeStrokes.get(message.participantId);
+      if (stroke) {
+        stroke.points.push({ x: message.x, y: message.y });
+      }
+      break;
+    }
+    case 'draw_end_broadcast': {
+      // Finalize friend's stroke
+      const completedStroke = state.activeStrokes.get(message.participantId);
+      if (completedStroke && completedStroke.points.length > 0) {
+        state.strokes.push(completedStroke);
+      }
+      state.activeStrokes.delete(message.participantId);
+      break;
+    }
+    case 'clear_drawings_broadcast':
+      // Remove all strokes by this participant
+      state.strokes = state.strokes.filter(
+        (stroke) => stroke.participantId !== message.participantId
+      );
+      state.activeStrokes.delete(message.participantId);
       break;
   }
 }
@@ -416,6 +490,104 @@ function handleWave(): void {
   }, 200);
 }
 
+function handleClearDrawings(): void {
+  // Remove my own strokes locally
+  if (state.participantId) {
+    state.strokes = state.strokes.filter((stroke) => stroke.participantId !== state.participantId);
+    state.activeStrokes.delete(state.participantId);
+  }
+  state.isDrawing = false;
+
+  // Send clear message to server
+  send({ type: 'clear_drawings' });
+
+  // Animate button
+  clearBtn.style.transform = 'scale(1.1)';
+  setTimeout(() => {
+    clearBtn.style.transform = '';
+  }, 150);
+}
+
+// ============ Drawing ============
+
+function handleDrawing(handState: LocalHandState): void {
+  const isPinchingNow = handState.isPinching;
+  const wasPinching = state.wasPinching;
+  state.wasPinching = isPinchingNow;
+
+  if (isPinchingNow && !wasPinching) {
+    // Started pinching - begin a new stroke
+    startDrawing();
+  } else if (isPinchingNow && wasPinching) {
+    // Still pinching - add point to stroke
+    addDrawingPoint(handState);
+  } else if (!isPinchingNow && wasPinching) {
+    // Released pinch - end the stroke
+    endDrawing();
+  }
+}
+
+function startDrawing(): void {
+  if (!state.participantId) return;
+
+  state.isDrawing = true;
+
+  // Create local active stroke
+  state.activeStrokes.set(state.participantId, {
+    participantId: state.participantId,
+    color: state.myColor,
+    points: [],
+  });
+
+  // Notify server
+  send({ type: 'draw_start' });
+}
+
+function addDrawingPoint(handState: LocalHandState): void {
+  if (!state.participantId || !state.isDrawing) return;
+
+  // Get pinch point (midpoint between thumb and index)
+  const landmarks = handState.landmarks;
+  if (!landmarks || landmarks.length < 21) return;
+
+  const thumb = landmarks[LANDMARKS.THUMB_TIP];
+  const index = landmarks[LANDMARKS.INDEX_TIP];
+  if (!thumb || !index) return;
+
+  // Calculate pinch point (mirrored for webcam view)
+  const pinchX = 1 - (thumb.x + index.x) / 2;
+  const pinchY = (thumb.y + index.y) / 2;
+
+  // Add to local active stroke
+  const activeStroke = state.activeStrokes.get(state.participantId);
+  if (activeStroke) {
+    activeStroke.points.push({ x: pinchX, y: pinchY });
+  }
+
+  // Send to server (use non-mirrored coordinates since server doesn't mirror)
+  send({
+    type: 'draw_point',
+    x: pinchX,
+    y: pinchY,
+  });
+}
+
+function endDrawing(): void {
+  if (!state.participantId) return;
+
+  state.isDrawing = false;
+
+  // Finalize local stroke
+  const completedStroke = state.activeStrokes.get(state.participantId);
+  if (completedStroke && completedStroke.points.length > 0) {
+    state.strokes.push(completedStroke);
+  }
+  state.activeStrokes.delete(state.participantId);
+
+  // Notify server
+  send({ type: 'draw_end' });
+}
+
 // ============ UI Helpers ============
 
 function showOverlay(type: 'connection' | 'camera' | 'waiting' | 'ready' | null): void {
@@ -440,6 +612,43 @@ function colorToCSS(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`;
 }
 
+// ============ Stroke Rendering ============
+
+function drawStroke(stroke: LocalStroke): void {
+  if (stroke.points.length < 2) return;
+
+  const cssColor = colorToCSS(stroke.color);
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // Draw glow layer first
+  ctx.strokeStyle = `${cssColor}44`;
+  ctx.lineWidth = 12;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.beginPath();
+  const firstPoint = stroke.points[0];
+  ctx.moveTo(firstPoint.x * w, firstPoint.y * h);
+  for (let i = 1; i < stroke.points.length; i++) {
+    const point = stroke.points[i];
+    ctx.lineTo(point.x * w, point.y * h);
+  }
+  ctx.stroke();
+
+  // Draw main stroke
+  ctx.strokeStyle = cssColor;
+  ctx.lineWidth = 4;
+
+  ctx.beginPath();
+  ctx.moveTo(firstPoint.x * w, firstPoint.y * h);
+  for (let i = 1; i < stroke.points.length; i++) {
+    const point = stroke.points[i];
+    ctx.lineTo(point.x * w, point.y * h);
+  }
+  ctx.stroke();
+}
+
 // ============ Rendering ============
 
 function render(): void {
@@ -452,7 +661,17 @@ function render(): void {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   if (state.phase === 'playing') {
-    // Draw friend's hand first (behind) - no landmarks, just position circle
+    // Draw all completed strokes first (behind everything)
+    for (const stroke of state.strokes) {
+      drawStroke(stroke);
+    }
+
+    // Draw active strokes (being drawn)
+    for (const stroke of state.activeStrokes.values()) {
+      drawStroke(stroke);
+    }
+
+    // Draw friend's hand (behind my hand) - no landmarks, just position circle
     if (state.friendHandState) {
       drawHand(
         state.friendHandState.position.x * canvas.width,
