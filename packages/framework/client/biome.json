@@ -21,7 +21,8 @@
       },
       "complexity": {
         "noForEach": "warn",
-        "useFlatMap": "error"
+        "useFlatMap": "error",
+        "useLiteralKeys": "off"
       }
     }
   },
