@@ -312,7 +312,7 @@ async function init(): Promise<void> {
   try {
     availableApps = await fetchApps();
     renderAppCards(availableApps);
-  } catch (err) {
+  } catch {
     if (appGrid) {
       appGrid.innerHTML = `
         <div class="error-content">

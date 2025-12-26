@@ -1,7 +1,7 @@
 # Docker Compose for Gesture Apps Multi-App Lobby
 #
 # This file is for PRODUCTION deployment on the Ubuntu server.
-# The lobby container is started here; game session containers are spawned dynamically.
+# The lobby container is started here; session containers are spawned dynamically.
 #
 # Prerequisites:
 # - Traefik reverse proxy running with 'outermost_router' network
@@ -9,7 +9,8 @@
 # - DNS: *.dx-tooling.org -> server IP
 #
 # Deployment:
-#   docker build -t blocks-cannons-game-session -f packages/applications/blocks-cannons/docker/Dockerfile .
+#   docker build -t blocks-cannons-gestures-app -f packages/applications/blocks-cannons/docker/Dockerfile .
+#   docker build -t hello-hands-gestures-app -f packages/applications/hello-hands/docker/Dockerfile .
 #   docker compose up --build -d
 
 services:

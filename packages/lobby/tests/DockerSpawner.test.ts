@@ -68,7 +68,7 @@ describe('DockerSpawner', () => {
       );
 
       // Check image name is appId-prefixed
-      expect(args[args.length - 1]).toBe('blocks-cannons-game-session');
+      expect(args[args.length - 1]).toBe('blocks-cannons-gestures-app');
     });
 
     it('should call wrapper with correct arguments for human game', async () => {
@@ -111,7 +111,7 @@ describe('DockerSpawner', () => {
       expect(args[nameIndex + 1]).toBe('session-other-app-abc123');
 
       // Image name should be appId-prefixed
-      expect(args[args.length - 1]).toBe('other-app-game-session');
+      expect(args[args.length - 1]).toBe('other-app-gestures-app');
     });
   });
 

@@ -15,8 +15,12 @@ FROM base AS builder
 WORKDIR /build
 
 # Copy package files for all workspace dependencies
+# The lobby imports app packages which depend on framework packages
 COPY package.json package-lock.json ./
 COPY packages/framework/protocol/package.json ./packages/framework/protocol/
+COPY packages/framework/server/package.json ./packages/framework/server/
+COPY packages/framework/client/package.json ./packages/framework/client/
+COPY packages/framework/input/package.json ./packages/framework/input/
 COPY packages/applications/blocks-cannons/package.json ./packages/applications/blocks-cannons/
 COPY packages/applications/hello-hands/package.json ./packages/applications/hello-hands/
 COPY packages/lobby/package.json ./packages/lobby/
@@ -26,12 +30,18 @@ RUN npm ci
 
 # Copy source code for all workspace dependencies
 COPY packages/framework/protocol/ ./packages/framework/protocol/
+COPY packages/framework/server/ ./packages/framework/server/
+COPY packages/framework/client/ ./packages/framework/client/
+COPY packages/framework/input/ ./packages/framework/input/
 COPY packages/applications/blocks-cannons/ ./packages/applications/blocks-cannons/
 COPY packages/applications/hello-hands/ ./packages/applications/hello-hands/
 COPY packages/lobby/ ./packages/lobby/
 
-# Build framework packages first (lobby depends on these via app packages)
+# Build framework packages first (in dependency order)
 RUN npm run build -w @gesture-app/framework-protocol
+RUN npm run build -w @gesture-app/framework-server
+RUN npm run build -w @gesture-app/framework-client
+RUN npm run build -w @gesture-app/framework-input
 
 # Build app packages (lobby imports these for registration)
 RUN npm run build -w @gesture-app/blocks-cannons
@@ -64,6 +74,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy package files for production install
 COPY package.json package-lock.json ./
 COPY packages/framework/protocol/package.json ./packages/framework/protocol/
+COPY packages/framework/server/package.json ./packages/framework/server/
+COPY packages/framework/client/package.json ./packages/framework/client/
+COPY packages/framework/input/package.json ./packages/framework/input/
 COPY packages/applications/blocks-cannons/package.json ./packages/applications/blocks-cannons/
 COPY packages/applications/hello-hands/package.json ./packages/applications/hello-hands/
 COPY packages/lobby/package.json ./packages/lobby/
@@ -71,12 +84,18 @@ COPY packages/lobby/package.json ./packages/lobby/
 # Install production dependencies only
 RUN npm ci --omit=dev \
     --workspace=@gesture-app/framework-protocol \
+    --workspace=@gesture-app/framework-server \
+    --workspace=@gesture-app/framework-client \
+    --workspace=@gesture-app/framework-input \
     --workspace=@gesture-app/blocks-cannons \
     --workspace=@gesture-app/hello-hands \
     --workspace=@gesture-app/lobby
 
 # Copy built artifacts
 COPY --from=builder /build/packages/framework/protocol/dist ./packages/framework/protocol/dist
+COPY --from=builder /build/packages/framework/server/dist ./packages/framework/server/dist
+COPY --from=builder /build/packages/framework/client/dist ./packages/framework/client/dist
+COPY --from=builder /build/packages/framework/input/dist ./packages/framework/input/dist
 COPY --from=builder /build/packages/applications/blocks-cannons/dist ./packages/applications/blocks-cannons/dist
 COPY --from=builder /build/packages/applications/hello-hands/dist ./packages/applications/hello-hands/dist
 COPY --from=builder /build/packages/lobby/dist ./packages/lobby/dist

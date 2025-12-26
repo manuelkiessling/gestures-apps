@@ -26,7 +26,7 @@ export interface DockerSpawnerConfig {
  */
 const DEFAULT_CONFIG: DockerSpawnerConfig = {
   wrapperPath: '/app/bin/docker-cli-wrapper.sh',
-  baseImageName: 'game-session',
+  baseImageName: 'gestures-app',
   network: 'outermost_router',
   baseDomain: 'dx-tooling.org',
 };

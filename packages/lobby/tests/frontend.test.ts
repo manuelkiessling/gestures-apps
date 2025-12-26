@@ -216,4 +216,3 @@ describe('Frontend API Client', () => {
     });
   });
 });
-

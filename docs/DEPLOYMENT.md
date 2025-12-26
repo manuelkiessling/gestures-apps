@@ -62,17 +62,17 @@ docker network ls | grep outermost_router
 docker network create outermost_router
 ```
 
-### 4. Build the Game Session Images
+### 4. Build the Application Session Images
 
-These images are used by the lobby to spawn game containers:
+These images are used by the lobby to spawn session containers:
 
 ```bash
 # Build from repo root:
-docker build -t blocks-cannons-game-session -f packages/applications/blocks-cannons/docker/Dockerfile .
-docker build -t hello-hands-game-session    -f packages/applications/hello-hands/docker/Dockerfile .
+docker build -t blocks-cannons-gestures-app -f packages/applications/blocks-cannons/docker/Dockerfile .
+docker build -t hello-hands-gestures-app    -f packages/applications/hello-hands/docker/Dockerfile .
 ```
 
-> **Note:** The lobby container also includes these app packages (for app registry/manifest data), but the game session images are separate containers spawned at runtime.
+> **Note:** The lobby container also includes these app packages (for app registry/manifest data), but the session images are separate containers spawned at runtime. Image names follow the pattern `{appId}-gestures-app`.
 
 ### 5. Start the Lobby
 
@@ -91,9 +91,9 @@ docker compose logs -f lobby
 
 Visit `https://gestures-apps.dx-tooling.org` in your browser.
 
-## Manual Testing: Launching Game Session Containers
+## Manual Testing: Launching Session Containers
 
-For testing purposes, you can manually launch a game session container. This is useful for debugging or testing without going through the lobby UI.
+For testing purposes, you can manually launch a session container. This is useful for debugging or testing without going through the lobby UI.
 
 ### Example: Launch a test session at `test-blocks-cannons-gestures.dx-tooling.org`
 
@@ -114,7 +114,7 @@ docker run -d \
   -l traefik.http.routers.session-blocks-cannons-test.entrypoints=websecure \
   -l traefik.http.routers.session-blocks-cannons-test.tls=true \
   -l traefik.http.services.session-blocks-cannons-test.loadbalancer.server.port=80 \
-  blocks-cannons-game-session
+  blocks-cannons-gestures-app
 ```
 
 **From inside the lobby container (using the wrapper script):**
@@ -139,7 +139,7 @@ bash /app/bin/docker-cli-wrapper.sh run \
   -l traefik.http.routers.session-blocks-cannons-test.entrypoints=websecure \
   -l traefik.http.routers.session-blocks-cannons-test.tls=true \
   -l traefik.http.services.session-blocks-cannons-test.loadbalancer.server.port=80 \
-  blocks-cannons-game-session
+  blocks-cannons-gestures-app
 ```
 
 **Cleanup:**
@@ -168,9 +168,9 @@ cd /var/www/gestures-apps
 # Pull latest code
 git pull
 
-# Rebuild game session images
-docker build -t blocks-cannons-game-session -f packages/applications/blocks-cannons/docker/Dockerfile .
-docker build -t hello-hands-game-session   -f packages/applications/hello-hands/docker/Dockerfile .
+# Rebuild application session images
+docker build -t blocks-cannons-gestures-app -f packages/applications/blocks-cannons/docker/Dockerfile .
+docker build -t hello-hands-gestures-app    -f packages/applications/hello-hands/docker/Dockerfile .
 
 # Rebuild and restart lobby (this also rebuilds all workspace dependencies)
 docker compose up --build -d
@@ -221,9 +221,9 @@ After deployment, verify everything works:
    # Should list running game session containers
    ```
 
-3. Check the game session image exists:
+3. Check the application session image exists:
    ```bash
-   docker images | grep blocks-cannons-game-session
+   docker images | grep blocks-cannons-gestures-app
    ```
 
 4. Verify the config file is in the correct location (if game server fails to start):
@@ -300,7 +300,7 @@ After deployment, verify everything works:
 
 - The `docker-cli-wrapper.sh` script restricts Docker access to only the commands needed
 - Container names must match `session-*` pattern
-- Only app-specific game session images can be run (e.g., `blocks-cannons-game-session`)
+- Only app-specific session images can be run (pattern: `{appId}-gestures-app`)
 - The wrapper script validates all commands before execution (this is the primary security mechanism)
 - Game sessions are isolated in their own containers
 - The lobby container runs as root to access the Docker socket, but the wrapper script provides command restrictions

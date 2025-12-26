@@ -3,7 +3,7 @@
 # Base: node:24-bookworm-slim (Debian-based)
 #
 # Build from repo root:
-#   docker build -f packages/applications/blocks-cannons/docker/Dockerfile -t blocks-cannons-game-session .
+#   docker build -f packages/applications/blocks-cannons/docker/Dockerfile -t blocks-cannons-gestures-app .
 
 FROM node:24-bookworm-slim AS base
 
@@ -22,6 +22,8 @@ COPY package.json package-lock.json ./
 COPY packages/framework/protocol/package.json ./packages/framework/protocol/
 COPY packages/framework/server/package.json ./packages/framework/server/
 COPY packages/framework/client/package.json ./packages/framework/client/
+COPY packages/framework/input/package.json ./packages/framework/input/
+COPY packages/framework/build/package.json ./packages/framework/build/
 COPY packages/applications/blocks-cannons/package.json ./packages/applications/blocks-cannons/
 
 # Install all dependencies (including dev)
@@ -31,12 +33,16 @@ RUN npm ci
 COPY packages/framework/protocol/ ./packages/framework/protocol/
 COPY packages/framework/server/ ./packages/framework/server/
 COPY packages/framework/client/ ./packages/framework/client/
+COPY packages/framework/input/ ./packages/framework/input/
+COPY packages/framework/build/ ./packages/framework/build/
 COPY packages/applications/blocks-cannons/ ./packages/applications/blocks-cannons/
 
 # Build framework packages first
 RUN npm run build -w @gesture-app/framework-protocol
 RUN npm run build -w @gesture-app/framework-server
 RUN npm run build -w @gesture-app/framework-client
+RUN npm run build -w @gesture-app/framework-input
+RUN npm run build -w @gesture-app/framework-build
 
 # Build blocks-cannons (server + shared)
 RUN npm run build -w @gesture-app/blocks-cannons
@@ -54,6 +60,7 @@ COPY package.json package-lock.json ./
 COPY packages/framework/protocol/package.json ./packages/framework/protocol/
 COPY packages/framework/server/package.json ./packages/framework/server/
 COPY packages/framework/client/package.json ./packages/framework/client/
+COPY packages/framework/input/package.json ./packages/framework/input/
 COPY packages/applications/blocks-cannons/package.json ./packages/applications/blocks-cannons/
 
 # Install production dependencies only
@@ -61,12 +68,14 @@ RUN npm ci --omit=dev \
     --workspace=@gesture-app/framework-protocol \
     --workspace=@gesture-app/framework-server \
     --workspace=@gesture-app/framework-client \
+    --workspace=@gesture-app/framework-input \
     --workspace=@gesture-app/blocks-cannons
 
 # Copy built artifacts
 COPY --from=builder /build/packages/framework/protocol/dist ./packages/framework/protocol/dist
 COPY --from=builder /build/packages/framework/server/dist ./packages/framework/server/dist
 COPY --from=builder /build/packages/framework/client/dist ./packages/framework/client/dist
+COPY --from=builder /build/packages/framework/input/dist ./packages/framework/input/dist
 COPY --from=builder /build/packages/applications/blocks-cannons/dist ./packages/applications/blocks-cannons/dist
 
 # Copy config to expected location (code looks for ./config/game.yaml relative to cwd)

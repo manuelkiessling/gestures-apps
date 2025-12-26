@@ -451,7 +451,7 @@ h2 {
 
 /* Utility classes */
 .hidden {
-  display: none !important;
+  display: none;
 }
 
 .share-section.hidden {
