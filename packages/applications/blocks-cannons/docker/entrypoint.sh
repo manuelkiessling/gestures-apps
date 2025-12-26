@@ -32,14 +32,14 @@ cat /app/client/session.json
 
 # Start the game server in the background
 echo "Starting game server for app: ${APP_ID}..."
-cd /app && node packages/server/dist/index.js &
+cd /app && node packages/applications/blocks-cannons/dist/server/index.js &
 GAME_SERVER_PID=$!
 
 # If WITH_BOT is true, start the bot after a short delay
 if [ "${WITH_BOT}" = "true" ]; then
     echo "Starting bot player..."
     sleep 2
-    cd /app && BOT_DIFFICULTY="${BOT_DIFFICULTY:-0.5}" node packages/server/dist/bot/index.js ws://localhost:3001 &
+    cd /app && BOT_DIFFICULTY="${BOT_DIFFICULTY:-0.5}" node packages/applications/blocks-cannons/dist/server/bot/index.js ws://localhost:3001 &
     BOT_PID=$!
 fi
 
@@ -58,4 +58,3 @@ wait -n
 echo "A process exited, shutting down..."
 kill $NGINX_PID $GAME_SERVER_PID ${BOT_PID:-} 2>/dev/null || true
 exit 1
-

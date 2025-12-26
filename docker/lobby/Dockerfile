@@ -14,13 +14,13 @@ COPY package.json package-lock.json ./
 COPY packages/lobby/package.json ./packages/lobby/
 
 # Install all dependencies (including dev)
-RUN npm ci --workspace=@block-game/lobby
+RUN npm ci --workspace=@gesture-app/lobby
 
 # Copy source code
 COPY packages/lobby/ ./packages/lobby/
 
 # Build lobby (server + frontend)
-RUN npm run build -w @block-game/lobby
+RUN npm run build -w @gesture-app/lobby
 
 # Production stage
 FROM base AS production
@@ -48,7 +48,7 @@ COPY package.json package-lock.json ./
 COPY packages/lobby/package.json ./packages/lobby/
 
 # Install production dependencies only
-RUN npm ci --omit=dev --workspace=@block-game/lobby
+RUN npm ci --omit=dev --workspace=@gesture-app/lobby
 
 # Copy built artifacts
 COPY --from=builder /build/packages/lobby/dist ./dist

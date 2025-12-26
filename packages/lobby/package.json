@@ -1,8 +1,8 @@
 {
-  "name": "@block-game/lobby",
+  "name": "@gesture-app/lobby",
   "version": "1.0.0",
   "type": "module",
-  "description": "Game lobby for creating and managing block game sessions",
+  "description": "Game lobby for creating and managing gesture app sessions",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

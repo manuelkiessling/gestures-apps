@@ -29,6 +29,16 @@ export {
   type SessionWelcomeData,
 } from './SessionClient.js';
 
+// Export session config
+export {
+  fetchSessionConfig,
+  getInjectedConfig,
+  isLocalDevelopment,
+  resolveSessionConfig,
+  type SessionConfig,
+  type SessionConfigResult,
+} from './SessionConfig.js';
+
 /**
  * Framework client version.
  */

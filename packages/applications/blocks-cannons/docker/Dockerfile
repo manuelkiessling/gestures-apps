@@ -19,26 +19,30 @@ WORKDIR /build
 
 # Copy package files
 COPY package.json package-lock.json ./
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/server/package.json ./packages/server/
-COPY packages/client/package.json ./packages/client/
+COPY packages/framework/protocol/package.json ./packages/framework/protocol/
+COPY packages/framework/server/package.json ./packages/framework/server/
+COPY packages/framework/client/package.json ./packages/framework/client/
+COPY packages/applications/blocks-cannons/package.json ./packages/applications/blocks-cannons/
 
 # Install all dependencies (including dev)
 RUN npm ci
 
 # Copy source code
-COPY packages/shared/ ./packages/shared/
-COPY packages/server/ ./packages/server/
-COPY packages/client/ ./packages/client/
+COPY packages/framework/protocol/ ./packages/framework/protocol/
+COPY packages/framework/server/ ./packages/framework/server/
+COPY packages/framework/client/ ./packages/framework/client/
+COPY packages/applications/blocks-cannons/ ./packages/applications/blocks-cannons/
 
-# Build shared package first
-RUN npm run build -w @block-game/shared
+# Build framework packages first
+RUN npm run build -w @gesture-app/framework-protocol
+RUN npm run build -w @gesture-app/framework-server
+RUN npm run build -w @gesture-app/framework-client
 
-# Build server
-RUN npm run build -w @block-game/server
+# Build blocks-cannons (server + shared)
+RUN npm run build -w @gesture-app/blocks-cannons
 
 # Build client
-RUN npm run build -w @block-game/client
+RUN npm run build:client -w @gesture-app/blocks-cannons
 
 # Production stage
 FROM base AS production
@@ -47,18 +51,29 @@ WORKDIR /app
 
 # Copy package files for production install
 COPY package.json package-lock.json ./
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/server/package.json ./packages/server/
+COPY packages/framework/protocol/package.json ./packages/framework/protocol/
+COPY packages/framework/server/package.json ./packages/framework/server/
+COPY packages/framework/client/package.json ./packages/framework/client/
+COPY packages/applications/blocks-cannons/package.json ./packages/applications/blocks-cannons/
 
 # Install production dependencies only
-RUN npm ci --omit=dev --workspace=@block-game/shared --workspace=@block-game/server
+RUN npm ci --omit=dev \
+    --workspace=@gesture-app/framework-protocol \
+    --workspace=@gesture-app/framework-server \
+    --workspace=@gesture-app/framework-client \
+    --workspace=@gesture-app/blocks-cannons
 
 # Copy built artifacts
-COPY --from=builder /build/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /build/packages/server/dist ./packages/server/dist
+COPY --from=builder /build/packages/framework/protocol/dist ./packages/framework/protocol/dist
+COPY --from=builder /build/packages/framework/server/dist ./packages/framework/server/dist
+COPY --from=builder /build/packages/framework/client/dist ./packages/framework/client/dist
+COPY --from=builder /build/packages/applications/blocks-cannons/dist ./packages/applications/blocks-cannons/dist
+
 # Copy config to expected location (code looks for ./config/game.yaml relative to cwd)
-COPY --from=builder /build/packages/server/config ./config
-COPY --from=builder /build/packages/client/dist ./client
+COPY --from=builder /build/packages/applications/blocks-cannons/config ./config
+
+# Copy client build
+COPY --from=builder /build/packages/applications/blocks-cannons/dist/client ./client
 
 # Copy nginx config
 COPY packages/applications/blocks-cannons/docker/nginx.conf /etc/nginx/nginx.conf
@@ -80,4 +95,3 @@ EXPOSE 80
 
 # Start services
 CMD ["/entrypoint.sh"]
-

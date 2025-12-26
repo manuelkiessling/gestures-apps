@@ -20,21 +20,33 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/shared/index.ts src/server/index.ts --format esm --dts --clean",
+    "build": "tsup src/index.ts src/shared/index.ts src/server/index.ts src/server/bot/index.ts --format esm --dts --clean",
+    "build:client": "vite build --config client/vite.config.ts",
+    "dev:client": "vite --config client/vite.config.ts",
     "check": "biome check --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:client": "vitest run --config client/vitest.config.ts"
   },
   "dependencies": {
+    "@gesture-app/framework-client": "^1.0.0",
     "@gesture-app/framework-protocol": "^1.0.0",
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/hands": "^0.4.1675469240",
+    "three": "^0.182.0",
+    "ws": "^8.18.0",
     "yaml": "^2.8.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
     "@types/node": "^24.0.0",
+    "@types/three": "^0.182.0",
+    "@types/ws": "^8.18.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",
+    "vite": "^6.0.0",
+    "vite-plugin-static-copy": "^2.3.0",
     "vitest": "^4.0.0"
   }
 }
