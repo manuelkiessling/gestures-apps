@@ -7,22 +7,22 @@ todos:
     status: pending
   - id: portion0-runtime-config
     content: Introduce runtime session config and remove domain hard-coding; add unit tests for config resolution.
-    status: pending
+    status: completed
     dependencies:
       - quality-gates-per-portion
   - id: portion1-scaffold-packages
     content: Scaffold packages/framework/* and packages/applications/* with smoke tests; update workspace globs.
-    status: pending
+    status: completed
     dependencies:
       - portion0-runtime-config
   - id: portion2-split-shared-with-tests
     content: Split shared into framework-level vs app-level and move corresponding tests incrementally with temporary compatibility re-exports.
-    status: pending
+    status: completed
     dependencies:
       - portion1-scaffold-packages
   - id: portion3-framework-server-with-conformance-tests
     content: Implement framework-server runtime and port server logic into blocks-cannons app; add framework-server conformance tests now.
-    status: pending
+    status: completed
     dependencies:
       - portion2-split-shared-with-tests
   - id: portion4-framework-client-with-tests
@@ -265,4 +265,162 @@ Update:
 
 ## Deliverables / definition of done
 
-- Framework is app-agnostic; blocks-cannons is “just an app.”
+- Framework is app-agnostic; blocks-cannons is "just an app."
+
+---
+
+## Implementation Log
+
+### Portion 0 — Runtime Session Config (COMPLETED ✓)
+
+**Completed**: 2025-12-26
+
+**Design decisions**:
+
+- Session config injected via `window.__SESSION_CONFIG__` (set by nginx/entrypoint before app loads)
+- Fallback: fetch from `/session.json` endpoint if window global not present
+- For local development: auto-detect localhost and use manual connection UI (existing behavior)
+- Config type: `{ appId: string; wsUrl: string; lobbyUrl: string; appConfig?: unknown }`
+
+**Files created**:
+
+- `packages/client/src/config/SessionConfig.ts` — types and resolution logic
+- `packages/client/src/config/index.ts` — module exports
+- `packages/client/tests/SessionConfig.test.ts` — 20 unit tests
+
+**Files modified**:
+
+- `packages/client/src/main.ts` — replaced `getAutoConnectUrl()` with `resolveSessionConfig()`, changed to async factory pattern `Game.create()`
+- `packages/client/src/ui/StatusDisplay.ts` — replaced `getLobbyUrl()` with constructor-injected `lobbyUrl` parameter
+
+**Key changes**:
+
+- Removed hard-coded regex pattern `^[a-z0-9]+-hands-blocks-cannons\.dx-tooling\.org$`
+- Client now receives session config from hosting environment, making it app-agnostic
+- StatusDisplay receives lobbyUrl via constructor, no longer derives it from hostname
+
+**Quality gate**: ✓ All 253 tests pass (20 new + 233 existing)
+
+---
+
+### Portion 1 — Scaffold Packages (COMPLETED ✓)
+
+**Completed**: 2025-12-26
+
+**New packages created**:
+
+| Package | Purpose |
+|---------|---------|
+| `@gesture-app/framework-protocol` | Lifecycle protocol (participant_ready, session_started, session_ended) |
+| `@gesture-app/framework-server` | Server runtime (2-participant admission, lifecycle gating) |
+| `@gesture-app/framework-client` | Client runtime (WS lifecycle, overlays, hand input) |
+| `@gesture-app/blocks-cannons` | Application placeholder (will receive migrated game code) |
+
+**Files created per package**:
+
+- `package.json`, `tsconfig.json`, `biome.json`, `vitest.config.ts`
+- `src/index.ts` — minimal exports (types, version constants)
+- `tests/*.test.ts` — smoke tests
+
+**Root changes**:
+
+- Updated `package.json` workspaces to include `packages/framework/*` and `packages/applications/*`
+- Added `build:deps` script to build `@block-game/shared` and `@gesture-app/framework-protocol` before other packages
+- Updated `validate` script to use `build:deps`
+
+**Quality gate**: ✓ All 268 tests pass (15 new + 253 existing)
+
+---
+
+### Portion 2 — Split Shared (COMPLETED ✓)
+
+**Completed**: 2025-12-26
+
+**What was split**:
+
+| Content | Source | Destination |
+|---------|--------|-------------|
+| Types (Block, Projectile, Player, etc.) | `@block-game/shared/types` | `@gesture-app/blocks-cannons/shared` |
+| Protocol (all Zod schemas + messages) | `@block-game/shared/protocol` | `@gesture-app/blocks-cannons/shared` |
+| Constants (colors, thresholds, etc.) | `@block-game/shared/constants` | `@gesture-app/blocks-cannons/shared` |
+
+**New files in `@gesture-app/blocks-cannons`**:
+
+- `src/shared/types.ts` — App-specific type definitions
+- `src/shared/constants.ts` — Game constants (colors, thresholds)
+- `src/shared/protocol.ts` — Zod schemas and message types
+- `src/shared/index.ts` — Re-exports all shared items
+- `tests/shared.test.ts` — 19 tests for shared module
+
+**Compatibility layer**:
+
+- `@block-game/shared` now re-exports from `@gesture-app/blocks-cannons/shared`
+- All existing code in `@block-game/server`, `@block-game/client` continues to work
+- Deprecation notices added to encourage migration to new imports
+
+**Build order updated**:
+
+1. `@gesture-app/framework-protocol`
+2. `@gesture-app/blocks-cannons`
+3. `@block-game/shared` (now depends on blocks-cannons)
+4. Everything else
+
+**Quality gate**: ✓ All 287 tests pass (19 new + 268 existing)
+
+---
+
+### Portion 3 — Framework Server Runtime (COMPLETED)
+
+**Started**: 2025-12-26
+**Completed**: 2025-12-26
+
+**Design decisions**:
+
+- `SessionRuntime<TClientMessage, TServerMessage, TWelcomeData, TResetData>` handles all lifecycle concerns
+- **Framework-level** (generic to all 2-participant apps):
+- 2-participant admission (reject 3rd with error)
+- Connection registry (`connections: Map<Connection, ParticipantId>`)
+- Lifecycle phases: `waiting → playing → finished`
+- Ready-state gating (both participants must be ready before session starts)
+- Play-again voting (both must vote, then reset)
+- Message routing targets: sender, opponent, all
+- **App-level** (delegated via `AppHooks` interface):
+- `generateParticipantId(number)`: Generate participant ID
+- `onParticipantJoin(participant)`: Return welcome data
+- `onParticipantLeave(id)`: Handle cleanup
+- `onMessage(msg, senderId, phase)`: Handle app-specific messages
+- `onSessionStart()`: Start game logic/tick loop
+- `onReset()`: Reset state for new round, return reset data
+- `onTick?(deltaTime)`: Optional tick-based updates
+- `checkSessionEnd?()`: Optional win condition check
+- Bots stay ready on reset; humans must re-ready
+- Backwards-compatible: supports both `player_ready` and `participant_ready` messages
+
+**Files created/modified**:
+
+- `packages/framework/server/src/SessionRuntime.ts` — Core session runtime implementation
+- `packages/framework/server/src/index.ts` — Updated exports
+- `packages/framework/server/tests/SessionRuntime.test.ts` — 22 comprehensive tests covering:
+- 2-participant admission (accept 1st, 2nd; reject 3rd)
+- Ready-state gating (both must be ready)
+- Bot auto-ready
+- Disconnect semantics
+- Play-again voting and reset flow
+- Message routing (sender/opponent/all)
+- Public API
+- `packages/framework/server/tests/server.test.ts` — Updated smoke tests
+
+**Progress**:
+
+- [x] Analyze GameManager to identify framework vs app concerns
+- [x] Design SessionRuntime with lifecycle phases including play-again
+- [x] Implement SessionRuntime in framework-server
+- [x] Define AppHooks interface for app integration
+- [x] Add comprehensive framework-server conformance tests
+- [x] Run quality gate (npm run validate)
+
+**Quality gate**: ✓ All 305 tests pass (22 new SessionRuntime tests)
+
+---
+
+### Portion 4 — Framework Client Runtime (NEXT)

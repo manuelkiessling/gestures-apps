@@ -34,7 +34,11 @@ export class StatusDisplay {
   private readonly votingStatus: HTMLElement;
   private readonly returnToLobbyLink: HTMLAnchorElement;
 
-  constructor() {
+  /** Lobby URL injected from session config, or null if not in a session */
+  private readonly lobbyUrl: string | null;
+
+  constructor(lobbyUrl: string | null = null) {
+    this.lobbyUrl = lobbyUrl;
     this.statusElement = getRequiredElement('status');
     this.connectionElement = getRequiredElement('connection-status');
     this.playerInfoElement = getRequiredElement('player-info');
@@ -166,19 +170,6 @@ export class StatusDisplay {
   private playAgainClickHandler: (() => void) | null = null;
 
   /**
-   * Get the lobby URL if running in a game session, or null if not applicable.
-   */
-  private getLobbyUrl(): string | null {
-    const hostname = window.location.hostname;
-    // Match game session pattern: {sessionId}-hands-blocks-cannons.dx-tooling.org
-    const sessionPattern = /^[a-z0-9]+-hands-blocks-cannons\.dx-tooling\.org$/;
-    if (sessionPattern.test(hostname)) {
-      return 'https://hands-blocks-cannons.dx-tooling.org';
-    }
-    return null;
-  }
-
-  /**
    * Show the game over overlay.
    * @param isWinner - Whether the local player won
    * @param onPlayAgain - Callback when play again button is clicked
@@ -214,10 +205,9 @@ export class StatusDisplay {
     };
     this.playAgainBtn.addEventListener('click', this.playAgainClickHandler);
 
-    // Show return to lobby link if in a game session
-    const lobbyUrl = this.getLobbyUrl();
-    if (lobbyUrl) {
-      this.returnToLobbyLink.href = lobbyUrl;
+    // Show return to lobby link if we have a lobby URL from session config
+    if (this.lobbyUrl) {
+      this.returnToLobbyLink.href = this.lobbyUrl;
       this.returnToLobbyLink.classList.remove('hidden');
     } else {
       this.returnToLobbyLink.classList.add('hidden');

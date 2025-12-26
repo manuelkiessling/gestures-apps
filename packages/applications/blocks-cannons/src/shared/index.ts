@@ -1,11 +1,6 @@
 /**
- * @fileoverview Re-exports everything from @gesture-app/blocks-cannons.
- * @deprecated Import from '@gesture-app/blocks-cannons/shared' instead.
- *
- * This package is maintained for backward compatibility during the
- * framework refactor. New code should import from:
- * - '@gesture-app/blocks-cannons/shared' for app-specific types/protocol
- * - '@gesture-app/framework-protocol' for framework lifecycle types
+ * @fileoverview Blocks & Cannons shared exports.
+ * Re-exports types, protocol, and constants for the blocks-cannons game.
  */
 
 // Constants
@@ -24,10 +19,8 @@ export {
   POSITION_SEND_THROTTLE_MS,
   PROJECTILE_COLOR,
 } from './constants.js';
-
 // Protocol
-export type { ClientMessage, GamePhase, ServerMessage } from './protocol/index.js';
-
+export type { ClientMessage, ServerMessage } from './protocol.js';
 export {
   BlockDestroyedMessage,
   BlockGrabbedMessage,
@@ -63,14 +56,14 @@ export {
   WallGridConfigSchema,
   WallHitMessage,
   WelcomeMessage,
-} from './protocol/index.js';
-
+} from './protocol.js';
 // Types
 export type {
   Block,
   BlockId,
   BlockType,
   DestroyedBlockInfo,
+  GamePhase,
   Player,
   PlayerId,
   PlayerNumber,
@@ -81,6 +74,5 @@ export type {
   Velocity,
   WallGridConfig,
   WallHitInfo,
-} from './types/index.js';
-
-export { MAX_GRABBED_BLOCKS } from './types/index.js';
+} from './types.js';
+export { MAX_GRABBED_BLOCKS } from './types.js';

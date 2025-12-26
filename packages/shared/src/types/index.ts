@@ -1,135 +1,23 @@
 /**
- * @fileoverview Core game types shared between client, server, and bot.
- * These types define the fundamental data structures used throughout the game.
+ * @fileoverview Re-exports types from @gesture-app/blocks-cannons.
+ * @deprecated Import from '@gesture-app/blocks-cannons/shared' instead.
  */
 
-/**
- * Unique identifier for a player in the game.
- */
-export type PlayerId = string;
+export type {
+  Block,
+  BlockId,
+  BlockType,
+  DestroyedBlockInfo,
+  Player,
+  PlayerId,
+  PlayerNumber,
+  Position,
+  Projectile,
+  ProjectileId,
+  RoomBounds,
+  Velocity,
+  WallGridConfig,
+  WallHitInfo,
+} from '@gesture-app/blocks-cannons/shared';
 
-/**
- * Unique identifier for a block entity.
- */
-export type BlockId = string;
-
-/**
- * Unique identifier for a projectile entity.
- */
-export type ProjectileId = string;
-
-/**
- * Player number indicating which side of the arena they play on.
- * - Player 1: Positioned at maxZ, fires towards minZ
- * - Player 2: Positioned at minZ, fires towards maxZ
- */
-export type PlayerNumber = 1 | 2;
-
-/**
- * Type of block entity.
- * - regular: Standard movable block that can be destroyed
- * - cannon: Special block that fires projectiles (may be indestructible)
- */
-export type BlockType = 'regular' | 'cannon';
-
-/**
- * 3D position coordinates in world space.
- */
-export interface Position {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-}
-
-/**
- * 3D velocity vector (units per second).
- */
-export interface Velocity {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-}
-
-/**
- * A block entity in the game world.
- */
-export interface Block {
-  readonly id: BlockId;
-  readonly position: Position;
-  readonly color: number;
-  readonly ownerId: PlayerId;
-  readonly blockType: BlockType;
-}
-
-/**
- * A projectile entity fired from a cannon.
- */
-export interface Projectile {
-  readonly id: ProjectileId;
-  readonly position: Position;
-  readonly velocity: Velocity;
-  readonly ownerId: PlayerId;
-  readonly color: number;
-}
-
-/**
- * Maximum number of blocks a player can grab simultaneously.
- */
-export const MAX_GRABBED_BLOCKS = 2;
-
-/**
- * Player state in the game.
- */
-export interface Player {
-  readonly id: PlayerId;
-  readonly number: PlayerNumber;
-  /**
-   * Block IDs currently grabbed by this player.
-   * Ordered by grab time (oldest first). Max length: MAX_GRABBED_BLOCKS.
-   */
-  readonly grabbedBlockIds: readonly BlockId[];
-  /** Whether this player is a bot (server-side only) */
-  readonly isBot?: boolean;
-  /** Whether this player has raised their hand at least once (server-side only) */
-  readonly isReady?: boolean;
-  /** Whether this player has voted to play again (server-side only) */
-  readonly wantsPlayAgain?: boolean;
-}
-
-/**
- * Defines the 3D bounds of the game arena.
- */
-export interface RoomBounds {
-  readonly minX: number;
-  readonly maxX: number;
-  readonly minY: number;
-  readonly maxY: number;
-  readonly minZ: number;
-  readonly maxZ: number;
-}
-
-/**
- * Configuration for wall hit visualization.
- */
-export interface WallGridConfig {
-  readonly enabled: boolean;
-  readonly highlightDuration: number;
-  readonly highlightIntensity: number;
-}
-
-/**
- * Information about a destroyed block, used for visual effects.
- */
-export interface DestroyedBlockInfo {
-  readonly blockId: BlockId;
-  readonly position: Position;
-  readonly color: number;
-}
-
-/**
- * Information about a projectile hitting a wall.
- */
-export interface WallHitInfo {
-  readonly position: Position;
-  readonly wallSide: 'minZ' | 'maxZ';
-}
+export { MAX_GRABBED_BLOCKS } from '@gesture-app/blocks-cannons/shared';

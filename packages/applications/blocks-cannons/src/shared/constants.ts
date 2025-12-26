@@ -1,0 +1,98 @@
+/**
+ * @fileoverview Blocks & Cannons game constants.
+ * These are compile-time constants specific to the blocks-cannons game.
+ */
+
+// ============ Block Colors ============
+
+/**
+ * Available colors for regular blocks (hex values).
+ * Excludes red/pink hues to clearly distinguish from cannons.
+ */
+export const BLOCK_COLORS = [
+  0x4a9eff, // Bright blue
+  0x8b5cf6, // Vivid purple
+  0x22d3ee, // Cyan
+  0x22c55e, // Emerald green
+  0xfbbf24, // Amber/gold
+] as const;
+
+/**
+ * Color for cannon blocks (vivid red for clear distinction).
+ */
+export const CANNON_COLOR = 0xff2222;
+
+/**
+ * Color for projectiles (bright yellow).
+ */
+export const PROJECTILE_COLOR = 0xffff00;
+
+// ============ Visual Constants ============
+
+/**
+ * Hand state colors for boundary feedback.
+ */
+export const HAND_COLORS = {
+  NORMAL: 0x66aaff,
+  WARNING: 0xffaa00,
+  OUTSIDE: 0xff4444,
+} as const;
+
+/**
+ * Highlight colors for block interactions.
+ */
+export const HIGHLIGHT_COLORS = {
+  REACHABLE: 0x00ff88,
+  GRABBED: 0xffaa00,
+  OPPONENT_GRAB: 0xff6666,
+} as const;
+
+// ============ Gesture Thresholds ============
+
+/**
+ * Camera boundary margin (0-1 normalized space).
+ * This defines the "safe zone" for hand tracking. A larger margin means
+ * a smaller tracking area, but more reliable tracking at the edges.
+ * The hand can still move outside this area (for visualization), but
+ * interactions are clamped to the room bounds mapped from this zone.
+ */
+export const CAMERA_MARGIN = 0.2;
+
+/**
+ * Distance threshold for pinch detection (normalized).
+ */
+export const PINCH_THRESHOLD = 0.07;
+
+/**
+ * Edge threshold for boundary warning (normalized).
+ */
+export const EDGE_THRESHOLD = 0.03;
+
+/**
+ * Distance threshold for block reachability.
+ */
+export const BLOCK_REACH_DISTANCE = 3;
+
+// ============ Network Constants ============
+
+/**
+ * Minimum interval between position updates (ms).
+ */
+export const POSITION_SEND_THROTTLE_MS = 50;
+
+// ============ Animation Constants ============
+
+/**
+ * Block floating animation amplitude.
+ */
+export const BLOCK_FLOAT_AMPLITUDE = 0.15;
+
+/**
+ * Explosion effect duration (ms).
+ */
+export const EXPLOSION_DURATION_MS = 1000;
+
+/**
+ * Number of particles in explosion effect.
+ */
+export const EXPLOSION_PARTICLE_COUNT = 20;

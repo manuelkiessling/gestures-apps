@@ -3,6 +3,7 @@
  */
 
 import * as THREE from 'three';
+import { resolveSessionConfig, type SessionConfig } from './config/index.js';
 import { InteractionManager } from './game/index.js';
 import { GestureDetector, HandTracker, HandVisualizer } from './input/index.js';
 import { GameClient } from './network/index.js';
@@ -48,7 +49,7 @@ class Game {
   // Current tracked hands for interaction processing (supports multiple hands)
   private currentHands: MultiHandResult = [];
 
-  constructor() {
+  private constructor(sessionConfig: SessionConfig | null) {
     // Get container element
     const container = document.getElementById('container');
     if (!container) {
@@ -67,8 +68,8 @@ class Game {
     this.gestureDetector = new GestureDetector();
     this.handTracker = new HandTracker(videoElement);
 
-    // Initialize UI
-    this.statusDisplay = new StatusDisplay();
+    // Initialize UI with lobby URL from session config
+    this.statusDisplay = new StatusDisplay(sessionConfig?.lobbyUrl ?? null);
 
     // Initialize network
     this.gameClient = new GameClient({
@@ -97,11 +98,10 @@ class Game {
     // Setup UI handlers
     this.statusDisplay.setupConnectButton((url) => this.connect(url));
 
-    // Check for auto-connect (game session container)
-    const autoConnectUrl = this.getAutoConnectUrl();
-    if (autoConnectUrl) {
+    // Auto-connect if we have session config
+    if (sessionConfig) {
       this.statusDisplay.hideServerConfig();
-      this.connect(autoConnectUrl);
+      this.connect(sessionConfig.wsUrl);
     }
 
     // Start animation loop
@@ -109,20 +109,16 @@ class Game {
   }
 
   /**
-   * Check if running in a game session container and return auto-connect URL.
-   * Returns null if manual connection is needed.
+   * Create and initialize the game, resolving session config first.
    */
-  private getAutoConnectUrl(): string | null {
-    const hostname = window.location.hostname;
+  static async create(): Promise<Game> {
+    const configResult = await resolveSessionConfig();
 
-    // Check if hostname matches game session pattern: {sessionId}-hands-blocks-cannons.dx-tooling.org
-    const sessionPattern = /^[a-z0-9]+-hands-blocks-cannons\.dx-tooling\.org$/;
-    if (sessionPattern.test(hostname)) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${protocol}//${hostname}/ws`;
+    if (configResult.mode === 'session') {
+      return new Game(configResult.config);
     }
-
-    return null;
+    // Development mode - show manual connection UI
+    return new Game(null);
   }
 
   /**
@@ -469,4 +465,6 @@ class Game {
 }
 
 // Start the game
-new Game();
+Game.create().catch((err) => {
+  console.error('Failed to start game:', err);
+});
