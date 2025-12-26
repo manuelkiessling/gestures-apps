@@ -228,11 +228,31 @@ class BlocksCannonsHooks
   }
 
   onTick(deltaTime: number): AppServerMessage[] {
+    const messages: AppServerMessage[] = [];
+
+    // Auto-fire all cannons that are off cooldown
+    for (const block of this.gameState.blocks.values()) {
+      if (block.blockType === 'cannon') {
+        const fireResult = this.gameState.fireCannonAuto(block.id);
+        if (fireResult.projectile) {
+          this.gameState = fireResult.state;
+          messages.push({
+            type: 'projectile_spawned',
+            projectile: {
+              id: fireResult.projectile.id,
+              position: fireResult.projectile.position,
+              velocity: fireResult.projectile.velocity,
+              ownerId: fireResult.projectile.ownerId,
+              color: fireResult.projectile.color,
+            },
+          });
+        }
+      }
+    }
+
     // Update projectiles
     const result = this.gameState.updateProjectiles(deltaTime);
     this.gameState = result.state;
-
-    const messages: AppServerMessage[] = [];
 
     if (this.gameState.projectiles.size > 0) {
       const projectiles = Array.from(this.gameState.projectiles.values()).map((p) => ({
