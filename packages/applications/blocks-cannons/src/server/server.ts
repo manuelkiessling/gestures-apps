@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { type WebSocket, WebSocketServer } from 'ws';
-import type { Block, ClientMessage, Position, ServerMessage } from '../shared/index.js';
+import type { Block, ClientMessage, ServerMessage } from '../shared/index.js';
 import { parseClientMessage, serializeServerMessage } from '../shared/protocol.js';
 import { GameState } from './game/GameState.js';
 import {
