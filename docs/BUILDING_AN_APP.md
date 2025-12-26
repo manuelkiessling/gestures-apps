@@ -936,6 +936,8 @@ interface MessageResponse<T> {
 3. **Handle all phases** - Your client should gracefully handle waiting, ready, playing, and finished states
 4. **Test with two windows** - Always test the two-participant flow locally
 5. **Log on the server** - Console logs help debug session lifecycle issues
+6. **Set phase before starting hand tracking** - Avoid race conditions by setting your phase state before starting the hand tracker callback loop
+7. **Handle late joins** - If someone raises their hand while waiting, check again when the opponent joins
 
 ---
 
@@ -990,8 +992,36 @@ export default defineConfig({
 import { Camera } from '@mediapipe/camera_utils';
 import { Hands } from '@mediapipe/hands';
 
+/** All 21 hand landmark indices */
+export const LANDMARKS = {
+  WRIST: 0,
+  THUMB_CMC: 1, THUMB_MCP: 2, THUMB_IP: 3, THUMB_TIP: 4,
+  INDEX_MCP: 5, INDEX_PIP: 6, INDEX_DIP: 7, INDEX_TIP: 8,
+  MIDDLE_MCP: 9, MIDDLE_PIP: 10, MIDDLE_DIP: 11, MIDDLE_TIP: 12,
+  RING_MCP: 13, RING_PIP: 14, RING_DIP: 15, RING_TIP: 16,
+  PINKY_MCP: 17, PINKY_PIP: 18, PINKY_DIP: 19, PINKY_TIP: 20,
+} as const;
+
+/** Connections between landmarks for drawing skeleton */
+export const HAND_CONNECTIONS: [number, number][] = [
+  // Palm
+  [0, 1], [0, 5], [0, 17], [5, 9], [9, 13], [13, 17],
+  // Fingers
+  [1, 2], [2, 3], [3, 4],       // Thumb
+  [5, 6], [6, 7], [7, 8],       // Index
+  [9, 10], [10, 11], [11, 12],  // Middle
+  [13, 14], [14, 15], [15, 16], // Ring
+  [17, 18], [18, 19], [19, 20], // Pinky
+];
+
+export interface Point2D {
+  x: number;
+  y: number;
+}
+
 export interface HandState {
-  position: { x: number; y: number };
+  position: Point2D;           // Palm center (normalized 0-1)
+  landmarks: Point2D[];        // All 21 landmarks for skeleton visualization
   isPinching: boolean;
   isRaised: boolean;
 }
@@ -1012,14 +1042,12 @@ export class HandTracker {
   async initialize(onHand: HandCallback): Promise<void> {
     this.callback = onHand;
 
-    // Get camera stream
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { width: 640, height: 480, facingMode: 'user' },
     });
     this.video.srcObject = stream;
     await this.video.play();
 
-    // Initialize MediaPipe Hands
     this.hands = new Hands({
       locateFile: (file) => `./mediapipe/hands/${file}`,
     });
@@ -1040,7 +1068,6 @@ export class HandTracker {
       }
     });
 
-    // Initialize camera feed
     this.camera = new Camera(this.video, {
       onFrame: async () => {
         if (this.hands && this.isRunning) {
@@ -1052,14 +1079,15 @@ export class HandTracker {
     });
   }
 
-  private extractHandState(landmarks: { x: number; y: number; z: number }[]): HandState {
-    const wrist = landmarks[0];
-    const thumbTip = landmarks[4];
-    const indexTip = landmarks[8];
+  private extractHandState(raw: { x: number; y: number; z: number }[]): HandState {
+    const wrist = raw[LANDMARKS.WRIST];
+    const thumbTip = raw[LANDMARKS.THUMB_TIP];
+    const indexTip = raw[LANDMARKS.INDEX_TIP];
+    const middleTip = raw[LANDMARKS.MIDDLE_TIP];
 
-    // Palm center
-    const palmX = (wrist.x + indexTip.x) / 2;
-    const palmY = (wrist.y + indexTip.y) / 2;
+    // Palm center (average of key points)
+    const palmX = (wrist.x + indexTip.x + middleTip.x) / 3;
+    const palmY = (wrist.y + indexTip.y + middleTip.y) / 3;
 
     // Pinch detection
     const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
@@ -1068,7 +1096,10 @@ export class HandTracker {
     // Raised hand detection
     const isRaised = wrist.y < 0.4;
 
-    return { position: { x: palmX, y: palmY }, isPinching, isRaised };
+    // Extract all landmarks as 2D points
+    const landmarks: Point2D[] = raw.map((lm) => ({ x: lm.x, y: lm.y }));
+
+    return { position: { x: palmX, y: palmY }, landmarks, isPinching, isRaised };
   }
 
   start(): void {
@@ -1096,6 +1127,9 @@ export class HandTracker {
 ```typescript
 import { HandTracker, type HandState } from './input/HandTracker.js';
 
+// State for hand-based ready detection
+let isHandRaised = false;
+
 const video = document.getElementById('camera-feed') as HTMLVideoElement;
 const tracker = new HandTracker(video);
 
@@ -1106,19 +1140,118 @@ await tracker.initialize((hand: HandState | null) => {
       type: 'hand_update',
       handState: hand,
     });
+
+    // Auto-ready when hand is raised (gesture-based ready)
+    if (hand.isRaised && !isHandRaised && phase === 'ready') {
+      isHandRaised = true;
+      sendReady();
+    }
+  } else {
+    isHandRaised = false; // Reset when hand lost
   }
 });
 
 tracker.start();
 ```
 
+### 6. Handle the Ready Flow with Hand Tracking
+
+The framework requires both participants to send `participant_ready` before starting. With hand tracking, you can use a "raise your hand" gesture:
+
+```typescript
+// When opponent joins while hand is already raised, send ready immediately
+function handleOpponentJoined() {
+  phase = 'ready';
+  showOverlay('ready');
+  
+  // If hand is already raised, auto-ready
+  if (currentHandState?.isRaised && !isHandRaised) {
+    isHandRaised = true;
+    sendReady();
+  }
+}
+```
+
+**Important:** Set the phase to `'ready'` *before* starting the hand tracker callback loop to avoid race conditions where the raised hand check fails because the phase isn't set yet.
+
+### 7. Draw Hand Skeleton (Optional)
+
+For visual feedback, draw the hand skeleton using the landmarks:
+
+```typescript
+import { HAND_CONNECTIONS, LANDMARKS, type HandState } from './input/HandTracker.js';
+
+function drawHandSkeleton(
+  ctx: CanvasRenderingContext2D,
+  hand: HandState,
+  width: number,
+  height: number,
+  color: string
+): void {
+  const { landmarks } = hand;
+  if (!landmarks || landmarks.length < 21) return;
+
+  // Draw bones (connections)
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+
+  for (const [a, b] of HAND_CONNECTIONS) {
+    const pa = landmarks[a];
+    const pb = landmarks[b];
+    if (pa && pb) {
+      ctx.beginPath();
+      ctx.moveTo(pa.x * width, pa.y * height);
+      ctx.lineTo(pb.x * width, pb.y * height);
+      ctx.stroke();
+    }
+  }
+
+  // Draw joints (larger circles for fingertips)
+  for (let i = 0; i < landmarks.length; i++) {
+    const lm = landmarks[i];
+    if (!lm) continue;
+
+    const isTip = [
+      LANDMARKS.THUMB_TIP,
+      LANDMARKS.INDEX_TIP,
+      LANDMARKS.MIDDLE_TIP,
+      LANDMARKS.RING_TIP,
+      LANDMARKS.PINKY_TIP,
+    ].includes(i);
+
+    ctx.beginPath();
+    ctx.arc(lm.x * width, lm.y * height, isTip ? 4 : 2, 0, Math.PI * 2);
+    ctx.fillStyle = isTip ? '#fff' : color;
+    ctx.fill();
+  }
+
+  // Highlight pinch point
+  if (hand.isPinching) {
+    const thumb = landmarks[LANDMARKS.THUMB_TIP];
+    const index = landmarks[LANDMARKS.INDEX_TIP];
+    if (thumb && index) {
+      const mx = ((thumb.x + index.x) / 2) * width;
+      const my = ((thumb.y + index.y) / 2) * height;
+      ctx.beginPath();
+      ctx.arc(mx, my, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+}
+```
+
+**Mirroring tip:** If your canvas is CSS-mirrored (`transform: scaleX(-1)`), draw landmarks using raw coordinates. If not mirrored in CSS, use `(1 - x) * width` for a mirror effect.
+
 ### Key Concepts
 
-| Gesture | Detection |
-|---------|-----------|
-| **Pinch** | Thumb tip and index tip distance < 0.08 |
-| **Raised hand** | Wrist Y position < 0.4 (top of frame) |
-| **Position** | Normalized 0-1 coordinates from camera |
+| Gesture | Detection | Use Case |
+|---------|-----------|----------|
+| **Pinch** | Thumb tip and index tip distance < 0.08 | Grab/select objects |
+| **Raised hand** | Wrist Y position < 0.4 (top of frame) | Signal ready, wave |
+| **Position** | Normalized 0-1 coordinates from camera | Cursor/pointer control |
 
 ### Privacy Note
 
@@ -1134,8 +1267,14 @@ The camera feed stays local - only extracted hand positions (x, y coordinates) a
 
 | App | Description | Key Features |
 |-----|-------------|--------------|
-| **hello-hands** | Wave hello demo | Camera hand tracking, position sharing, wave gesture |
-| **blocks-cannons** | Competitive game | 3D rendering, game state, bot AI, pinch-to-grab |
+| **hello-hands** | Wave hello demo | 2D skeleton visualization, raise-to-ready gesture, position sharing |
+| **blocks-cannons** | Competitive game | 3D volumetric hands, game state, bot AI, pinch-to-grab |
 
-Refer to `packages/applications/hello-hands/` for a complete hand-tracking reference implementation.
+Refer to `packages/applications/hello-hands/` for a complete hand-tracking reference implementation, including:
+- Camera permission flow with overlay UI
+- Raise-hand gesture to auto-ready
+- 2D hand skeleton visualization (21 landmarks + connections)
+- Camera preview with skeleton overlay
+- Pinch gesture highlighting
+- Tracking status indicator
 

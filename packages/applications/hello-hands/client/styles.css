@@ -243,13 +243,13 @@ body {
   margin-top: 1rem;
 }
 
-/* Camera preview (small mirror in corner) */
+/* Camera preview (mirror in corner showing hand skeleton) */
 #camera-preview {
   position: fixed;
   bottom: 6rem;
   right: 1rem;
-  width: 160px;
-  height: 120px;
+  width: 240px;
+  height: 180px;
   border-radius: 12px;
   overflow: hidden;
   border: 2px solid rgba(78, 205, 196, 0.5);

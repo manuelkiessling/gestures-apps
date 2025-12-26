@@ -13,7 +13,12 @@ import type {
   ServerMessage,
 } from '../src/shared/protocol.js';
 import { PARTICIPANT_COLORS } from '../src/shared/types.js';
-import { HandTracker, type HandState as TrackerHandState } from './input/HandTracker.js';
+import {
+  HAND_CONNECTIONS,
+  HandTracker,
+  LANDMARKS,
+  type HandState as TrackerHandState,
+} from './input/HandTracker.js';
 
 // ============ DOM Elements ============
 
@@ -50,6 +55,11 @@ const cameraCtx = cameraCanvas.getContext('2d');
 
 // ============ State ============
 
+/** Extended hand state with landmarks for local visualization */
+interface LocalHandState extends HandState {
+  landmarks?: { x: number; y: number }[];
+}
+
 interface AppState {
   ws: WebSocket | null;
   handTracker: HandTracker | null;
@@ -58,7 +68,7 @@ interface AppState {
   myColor: number;
   friendColor: number;
   phase: 'connecting' | 'camera' | 'waiting' | 'ready' | 'playing' | 'finished';
-  myHandState: HandState | null;
+  myHandState: LocalHandState | null;
   friendHandState: HandState | null;
   hasOpponent: boolean;
   isHandRaised: boolean;
@@ -105,8 +115,8 @@ function init(): void {
 function resizeCanvas(): void {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  cameraCanvas.width = 160;
-  cameraCanvas.height = 120;
+  cameraCanvas.width = 240;
+  cameraCanvas.height = 180;
 }
 
 // ============ Connection ============
@@ -222,6 +232,7 @@ function handleHandUpdate(hand: TrackerHandState | null): void {
       position: hand.position,
       isPinching: hand.isPinching,
       isRaised: hand.isRaised,
+      landmarks: hand.landmarks, // Keep landmarks for local visualization
     };
 
     // Check for raised hand (auto-ready)
@@ -255,22 +266,75 @@ function handleHandUpdate(hand: TrackerHandState | null): void {
 function drawCameraPreview(hand: TrackerHandState | null): void {
   if (!cameraCtx) return;
 
-  // Draw camera feed
+  // Draw camera feed (CSS already mirrors the canvas, so no JS mirror needed)
   cameraCtx.drawImage(cameraFeed, 0, 0, cameraCanvas.width, cameraCanvas.height);
 
-  // Draw hand indicator if detected
-  if (hand) {
-    const x = (1 - hand.position.x) * cameraCanvas.width; // Mirror
-    const y = hand.position.y * cameraCanvas.height;
-    const radius = hand.isPinching ? 8 : 12;
+  // Draw hand skeleton if detected
+  if (hand?.landmarks) {
+    const w = cameraCanvas.width;
+    const h = cameraCanvas.height;
 
-    cameraCtx.beginPath();
-    cameraCtx.arc(x, y, radius, 0, Math.PI * 2);
-    cameraCtx.fillStyle = hand.isRaised ? '#4ecdc4' : '#ff6b6b';
-    cameraCtx.fill();
-    cameraCtx.strokeStyle = '#fff';
+    // Get color based on state
+    const color = hand.isRaised ? '#4ecdc4' : '#ff6b6b';
+
+    // Draw connections (bones) - no mirror here, CSS handles it
+    cameraCtx.strokeStyle = color;
     cameraCtx.lineWidth = 2;
-    cameraCtx.stroke();
+    cameraCtx.lineCap = 'round';
+
+    for (const [a, b] of HAND_CONNECTIONS) {
+      const pa = hand.landmarks[a];
+      const pb = hand.landmarks[b];
+      if (pa && pb) {
+        const x1 = pa.x * w;
+        const y1 = pa.y * h;
+        const x2 = pb.x * w;
+        const y2 = pb.y * h;
+
+        cameraCtx.beginPath();
+        cameraCtx.moveTo(x1, y1);
+        cameraCtx.lineTo(x2, y2);
+        cameraCtx.stroke();
+      }
+    }
+
+    // Draw joints
+    for (let i = 0; i < hand.landmarks.length; i++) {
+      const lm = hand.landmarks[i];
+      if (!lm) continue;
+
+      const x = lm.x * w;
+      const y = lm.y * h;
+
+      // Fingertips are larger
+      const isTip =
+        i === LANDMARKS.THUMB_TIP ||
+        i === LANDMARKS.INDEX_TIP ||
+        i === LANDMARKS.MIDDLE_TIP ||
+        i === LANDMARKS.RING_TIP ||
+        i === LANDMARKS.PINKY_TIP;
+      const radius = isTip ? 4 : 2;
+
+      cameraCtx.beginPath();
+      cameraCtx.arc(x, y, radius, 0, Math.PI * 2);
+      cameraCtx.fillStyle = isTip ? '#fff' : color;
+      cameraCtx.fill();
+    }
+
+    // Highlight pinch if active
+    if (hand.isPinching) {
+      const thumb = hand.landmarks[LANDMARKS.THUMB_TIP];
+      const index = hand.landmarks[LANDMARKS.INDEX_TIP];
+      if (thumb && index) {
+        const mx = ((thumb.x + index.x) / 2) * w;
+        const my = ((thumb.y + index.y) / 2) * h;
+        cameraCtx.beginPath();
+        cameraCtx.arc(mx, my, 8, 0, Math.PI * 2);
+        cameraCtx.strokeStyle = '#fff';
+        cameraCtx.lineWidth = 2;
+        cameraCtx.stroke();
+      }
+    }
   }
 }
 
@@ -431,25 +495,29 @@ function render(): void {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   if (state.phase === 'playing') {
-    // Draw friend's hand first (behind)
+    // Draw friend's hand first (behind) - no landmarks, just position circle
     if (state.friendHandState) {
       drawHand(
         state.friendHandState.position.x * canvas.width,
         state.friendHandState.position.y * canvas.height,
         state.friendColor,
         state.friendHandState.isPinching,
-        'Friend'
+        'Friend',
+        undefined, // Friend's landmarks not sent over network
+        false
       );
     }
 
-    // Draw my hand (in front, mirrored)
+    // Draw my hand (in front) with full skeleton
     if (state.myHandState) {
       drawHand(
         (1 - state.myHandState.position.x) * canvas.width, // Mirror X
         state.myHandState.position.y * canvas.height,
         state.myColor,
         state.myHandState.isPinching,
-        'You'
+        'You',
+        state.myHandState.landmarks, // Full skeleton for local hand
+        true // Mirror for webcam view
       );
     }
 
@@ -465,45 +533,187 @@ function render(): void {
   requestAnimationFrame(render);
 }
 
-function drawHand(x: number, y: number, color: number, isPinching: boolean, label: string): void {
-  const radius = isPinching ? 25 : 35;
+function drawHand(
+  x: number,
+  y: number,
+  color: number,
+  isPinching: boolean,
+  label: string,
+  landmarks?: { x: number; y: number }[],
+  mirror = false
+): void {
   const cssColor = colorToCSS(color);
+  const w = canvas.width;
+  const h = canvas.height;
 
-  // Outer glow
-  const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, radius + 30);
-  glowGradient.addColorStop(0, `${cssColor}66`);
-  glowGradient.addColorStop(1, `${cssColor}00`);
-  ctx.beginPath();
-  ctx.arc(x, y, radius + 30, 0, Math.PI * 2);
-  ctx.fillStyle = glowGradient;
-  ctx.fill();
+  // If we have landmarks, draw the full skeleton
+  if (landmarks && landmarks.length >= 21) {
+    // Draw connections (bones) with glow
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-  // Main circle
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = cssColor;
-  ctx.fill();
+    // Glow layer
+    ctx.strokeStyle = `${cssColor}44`;
+    ctx.lineWidth = 16;
+    for (const [a, b] of HAND_CONNECTIONS) {
+      const pa = landmarks[a];
+      const pb = landmarks[b];
+      if (pa && pb) {
+        const x1 = (mirror ? 1 - pa.x : pa.x) * w;
+        const y1 = pa.y * h;
+        const x2 = (mirror ? 1 - pb.x : pb.x) * w;
+        const y2 = pb.y * h;
 
-  // Inner highlight
-  ctx.beginPath();
-  ctx.arc(x - radius * 0.2, y - radius * 0.2, radius * 0.35, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-  ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
 
-  // Pinch indicator (ring)
-  if (isPinching) {
+    // Main skeleton
+    ctx.strokeStyle = cssColor;
+    ctx.lineWidth = 6;
+    for (const [a, b] of HAND_CONNECTIONS) {
+      const pa = landmarks[a];
+      const pb = landmarks[b];
+      if (pa && pb) {
+        const x1 = (mirror ? 1 - pa.x : pa.x) * w;
+        const y1 = pa.y * h;
+        const x2 = (mirror ? 1 - pb.x : pb.x) * w;
+        const y2 = pb.y * h;
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
+
+    // Draw joints
+    for (let i = 0; i < landmarks.length; i++) {
+      const lm = landmarks[i];
+      if (!lm) continue;
+
+      const lx = (mirror ? 1 - lm.x : lm.x) * w;
+      const ly = lm.y * h;
+
+      // Fingertips are larger and brighter
+      const isTip =
+        i === LANDMARKS.THUMB_TIP ||
+        i === LANDMARKS.INDEX_TIP ||
+        i === LANDMARKS.MIDDLE_TIP ||
+        i === LANDMARKS.RING_TIP ||
+        i === LANDMARKS.PINKY_TIP;
+
+      const jointRadius = isTip ? 12 : 6;
+
+      // Glow for tips
+      if (isTip) {
+        const tipGlow = ctx.createRadialGradient(lx, ly, 0, lx, ly, jointRadius + 15);
+        tipGlow.addColorStop(0, `${cssColor}88`);
+        tipGlow.addColorStop(1, `${cssColor}00`);
+        ctx.beginPath();
+        ctx.arc(lx, ly, jointRadius + 15, 0, Math.PI * 2);
+        ctx.fillStyle = tipGlow;
+        ctx.fill();
+      }
+
+      // Joint
+      ctx.beginPath();
+      ctx.arc(lx, ly, jointRadius, 0, Math.PI * 2);
+      ctx.fillStyle = isTip ? '#fff' : cssColor;
+      ctx.fill();
+
+      // Inner highlight on tips
+      if (isTip) {
+        ctx.beginPath();
+        ctx.arc(lx - 2, ly - 2, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.fill();
+      }
+    }
+
+    // Pinch indicator
+    if (isPinching) {
+      const thumb = landmarks[LANDMARKS.THUMB_TIP];
+      const index = landmarks[LANDMARKS.INDEX_TIP];
+      if (thumb && index) {
+        const mx = (mirror ? 1 - (thumb.x + index.x) / 2 : (thumb.x + index.x) / 2) * w;
+        const my = ((thumb.y + index.y) / 2) * h;
+
+        // Pinch glow
+        const pinchGlow = ctx.createRadialGradient(mx, my, 0, mx, my, 30);
+        pinchGlow.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+        pinchGlow.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)');
+        pinchGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.beginPath();
+        ctx.arc(mx, my, 30, 0, Math.PI * 2);
+        ctx.fillStyle = pinchGlow;
+        ctx.fill();
+
+        // Pinch ring
+        ctx.beginPath();
+        ctx.arc(mx, my, 18, 0, Math.PI * 2);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+
+    // Label at wrist
+    const wrist = landmarks[LANDMARKS.WRIST];
+    if (wrist) {
+      const labelX = (mirror ? 1 - wrist.x : wrist.x) * w;
+      const labelY = wrist.y * h + 50;
+      ctx.font = 'bold 18px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.shadowBlur = 4;
+      ctx.fillText(label, labelX, labelY);
+      ctx.shadowBlur = 0;
+    }
+  } else {
+    // Fallback: draw simple circle if no landmarks
+    const radius = isPinching ? 25 : 35;
+
+    // Outer glow
+    const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, radius + 30);
+    glowGradient.addColorStop(0, `${cssColor}66`);
+    glowGradient.addColorStop(1, `${cssColor}00`);
     ctx.beginPath();
-    ctx.arc(x, y, radius + 8, 0, Math.PI * 2);
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 4;
-    ctx.stroke();
-  }
+    ctx.arc(x, y, radius + 30, 0, Math.PI * 2);
+    ctx.fillStyle = glowGradient;
+    ctx.fill();
 
-  // Label
-  ctx.font = 'bold 16px "Segoe UI", sans-serif';
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'center';
-  ctx.fillText(label, x, y + radius + 30);
+    // Main circle
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = cssColor;
+    ctx.fill();
+
+    // Inner highlight
+    ctx.beginPath();
+    ctx.arc(x - radius * 0.2, y - radius * 0.2, radius * 0.35, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.fill();
+
+    // Pinch indicator (ring)
+    if (isPinching) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+
+    // Label
+    ctx.font = 'bold 16px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, y + radius + 30);
+  }
 }
 
 // ============ Start ============

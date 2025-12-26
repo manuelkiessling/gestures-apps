@@ -1,7 +1,7 @@
 /**
  * @fileoverview MediaPipe hand tracking for Hello Hands.
  *
- * Simplified hand tracker that detects hand position and gestures.
+ * Tracks hand position, gestures, and provides all 21 landmarks for visualization.
  */
 
 import { Camera } from '@mediapipe/camera_utils';
@@ -19,12 +19,60 @@ const MEDIAPIPE_CONFIG = {
 } as const;
 
 /** Hand landmark indices */
-const LANDMARKS = {
+export const LANDMARKS = {
   WRIST: 0,
+  THUMB_CMC: 1,
+  THUMB_MCP: 2,
+  THUMB_IP: 3,
   THUMB_TIP: 4,
+  INDEX_MCP: 5,
+  INDEX_PIP: 6,
+  INDEX_DIP: 7,
   INDEX_TIP: 8,
+  MIDDLE_MCP: 9,
+  MIDDLE_PIP: 10,
+  MIDDLE_DIP: 11,
   MIDDLE_TIP: 12,
+  RING_MCP: 13,
+  RING_PIP: 14,
+  RING_DIP: 15,
+  RING_TIP: 16,
+  PINKY_MCP: 17,
+  PINKY_PIP: 18,
+  PINKY_DIP: 19,
+  PINKY_TIP: 20,
 } as const;
+
+/** Connections between landmarks for drawing the skeleton */
+export const HAND_CONNECTIONS: [number, number][] = [
+  // Palm
+  [0, 1],
+  [0, 5],
+  [0, 17],
+  [5, 9],
+  [9, 13],
+  [13, 17],
+  // Thumb
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  // Index finger
+  [5, 6],
+  [6, 7],
+  [7, 8],
+  // Middle finger
+  [9, 10],
+  [10, 11],
+  [11, 12],
+  // Ring finger
+  [13, 14],
+  [14, 15],
+  [15, 16],
+  // Pinky finger
+  [17, 18],
+  [18, 19],
+  [19, 20],
+];
 
 /** Pinch detection threshold (normalized distance) */
 const PINCH_THRESHOLD = 0.08;
@@ -32,12 +80,20 @@ const PINCH_THRESHOLD = 0.08;
 /** Raised hand detection threshold (wrist Y position) */
 const RAISED_THRESHOLD = 0.4;
 
+/** A single 2D point */
+export interface Point2D {
+  x: number;
+  y: number;
+}
+
 /**
- * Simplified hand state for Hello Hands.
+ * Hand state with full landmark data for visualization.
  */
 export interface HandState {
   /** Normalized position (0-1 range, center of palm) */
-  position: { x: number; y: number };
+  position: Point2D;
+  /** All 21 hand landmarks (normalized 0-1 coordinates) */
+  landmarks: Point2D[];
   /** Whether thumb and index are pinched together */
   isPinching: boolean;
   /** Whether hand is raised above threshold */
@@ -117,13 +173,13 @@ export class HandTracker {
   }
 
   /**
-   * Extract simplified hand state from landmarks.
+   * Extract hand state from landmarks, including all 21 points for visualization.
    */
-  private extractHandState(landmarks: { x: number; y: number; z: number }[]): HandState {
-    const wrist = landmarks[LANDMARKS.WRIST];
-    const thumbTip = landmarks[LANDMARKS.THUMB_TIP];
-    const indexTip = landmarks[LANDMARKS.INDEX_TIP];
-    const middleTip = landmarks[LANDMARKS.MIDDLE_TIP];
+  private extractHandState(rawLandmarks: { x: number; y: number; z: number }[]): HandState {
+    const wrist = rawLandmarks[LANDMARKS.WRIST];
+    const thumbTip = rawLandmarks[LANDMARKS.THUMB_TIP];
+    const indexTip = rawLandmarks[LANDMARKS.INDEX_TIP];
+    const middleTip = rawLandmarks[LANDMARKS.MIDDLE_TIP];
 
     // Calculate palm center (average of key points)
     const palmX = (wrist.x + indexTip.x + middleTip.x) / 3;
@@ -136,8 +192,12 @@ export class HandTracker {
     // Detect raised hand (wrist above threshold)
     const isRaised = wrist.y < RAISED_THRESHOLD;
 
+    // Extract all landmarks as 2D points
+    const landmarks: Point2D[] = rawLandmarks.map((lm) => ({ x: lm.x, y: lm.y }));
+
     return {
       position: { x: palmX, y: palmY },
+      landmarks,
       isPinching,
       isRaised,
     };
