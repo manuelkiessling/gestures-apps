@@ -1,10 +1,30 @@
 import type { GameSession, OpponentType, SessionStatus } from '../types.js';
 
 /**
+ * Configuration for session URL generation.
+ */
+export interface SessionStoreConfig {
+  /** Base domain for session URLs (e.g., 'dx-tooling.org') */
+  baseDomain: string;
+}
+
+/**
+ * Default configuration.
+ */
+const DEFAULT_CONFIG: SessionStoreConfig = {
+  baseDomain: 'dx-tooling.org',
+};
+
+/**
  * In-memory store for game sessions.
  */
 export class SessionStore {
   private sessions = new Map<string, GameSession>();
+  private readonly config: SessionStoreConfig;
+
+  constructor(config: Partial<SessionStoreConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+  }
 
   /**
    * Generate a unique session ID.
@@ -24,15 +44,24 @@ export class SessionStore {
   }
 
   /**
+   * Generate the game URL for a session.
+   * Format: https://{sessionId}-{appId}.{baseDomain}
+   */
+  private generateGameUrl(sessionId: string, appId: string): string {
+    return `https://${sessionId}-${appId}.${this.config.baseDomain}`;
+  }
+
+  /**
    * Create a new session.
    */
-  create(id: string, opponentType: OpponentType): GameSession {
-    const gameUrl = `https://${id}-hands-blocks-cannons.dx-tooling.org`;
+  create(id: string, appId: string, opponentType: OpponentType): GameSession {
+    const gameUrl = this.generateGameUrl(id, appId);
     const joinUrl = opponentType === 'human' ? gameUrl : null;
-    const containerName = `hbc-session-${id}`;
+    const containerName = `session-${appId}-${id}`;
 
     const session: GameSession = {
       id,
+      appId,
       opponentType,
       status: 'starting',
       gameUrl,
@@ -77,6 +106,13 @@ export class SessionStore {
    */
   getAll(): GameSession[] {
     return Array.from(this.sessions.values());
+  }
+
+  /**
+   * Get all sessions for a specific app.
+   */
+  getByAppId(appId: string): GameSession[] {
+    return Array.from(this.sessions.values()).filter((s) => s.appId === appId);
   }
 
   /**

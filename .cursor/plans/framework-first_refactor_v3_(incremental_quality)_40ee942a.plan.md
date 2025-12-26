@@ -38,7 +38,7 @@ todos:
       - portion4-framework-client-with-tests
   - id: portion6-lobby-multiapp-with-tests
     content: Refactor lobby for multi-app session creation (appId) and update/port lobby tests accordingly.
-    status: pending
+    status: completed
     dependencies:
       - portion5-app-registry
   - id: portion7-container-app-selection
@@ -552,4 +552,52 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 
 ---
 
-### Portion 6 — Lobby Multi-App (NEXT)
+### Portion 6 — Lobby Multi-App (COMPLETED)
+
+**Started**: 2025-12-26
+**Completed**: 2025-12-26
+
+**Design decisions**:
+
+- **API changes**:
+  - `POST /api/sessions` now requires `appId` in request body
+  - Returns `appId` in response along with `sessionId`, `gameUrl`, `joinUrl`
+  - `GET /api/sessions/:id` returns `appId` in status response
+  - New `GET /api/sessions/apps` endpoint lists available apps from registry
+- **Validation**: `appId` is validated against the global registry before session creation
+  - Returns 400 with helpful error message and list of available apps if unknown
+- **URL format**: `https://{sessionId}-{appId}.{baseDomain}`
+  - Example: `https://abc123-blocks-cannons.dx-tooling.org`
+- **Container naming**: `session-{appId}-{sessionId}`
+  - Example: `session-blocks-cannons-abc123`
+- **Docker image naming**: `{appId}-game-session`
+  - Example: `blocks-cannons-game-session`
+- **Environment variables**: Container receives `APP_ID` alongside `SESSION_ID`
+
+**Files modified**:
+
+- `packages/lobby/src/types.ts` — Added `appId` to `GameSession`, `CreateSessionRequest`, responses
+- `packages/lobby/src/services/SessionStore.ts` — Updated `create()` to accept `appId`, added `getByAppId()`
+- `packages/lobby/src/services/DockerSpawner.ts` — Updated `spawn()` to accept `appId`, pass to container
+- `packages/lobby/src/routes/sessions.ts` — Added appId validation, registry lookup, apps endpoint
+- `packages/lobby/package.json` — Added `@gesture-app/framework-protocol` dependency
+- `packages/lobby/tests/SessionStore.test.ts` — Updated all tests for appId, added `getByAppId` tests
+- `packages/lobby/tests/DockerSpawner.test.ts` — Updated all tests for appId
+- `packages/lobby/tests/sessions.test.ts` — Updated all tests for appId, added validation tests
+
+**Progress**:
+
+- [x] Analyze lobby routes and session creation flow
+- [x] Add appId to API request/response types
+- [x] Update SessionStore to store and query by appId
+- [x] Update DockerSpawner to pass appId to containers
+- [x] Add registry validation in session creation
+- [x] Add /api/sessions/apps endpoint
+- [x] Update all lobby tests for appId
+- [x] Run quality gate (npm run validate)
+
+**Quality gate**: ✓ All 374 tests pass
+
+---
+
+### Portion 7 — Container App Selection (NEXT)

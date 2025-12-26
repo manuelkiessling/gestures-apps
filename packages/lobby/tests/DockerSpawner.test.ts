@@ -33,7 +33,7 @@ describe('DockerSpawner', () => {
 
   describe('spawn', () => {
     it('should call wrapper with correct arguments for bot game', async () => {
-      await spawner.spawn('abc123', true, 0.7);
+      await spawner.spawn('abc123', 'blocks-cannons', true, 0.7);
 
       expect(mockExecFile).toHaveBeenCalledTimes(1);
       const [cmd, args] = mockExecFile.mock.calls[0] as [string, string[]];
@@ -45,10 +45,10 @@ describe('DockerSpawner', () => {
       // Check auto-remove flag (container cleans up on exit)
       expect(args).toContain('--rm');
 
-      // Check container name
+      // Check container name (now includes appId)
       expect(args).toContain('--name');
       const nameIndex = args.indexOf('--name');
-      expect(args[nameIndex + 1]).toBe('hbc-session-abc123');
+      expect(args[nameIndex + 1]).toBe('session-blocks-cannons-abc123');
 
       // Check network
       expect(args).toContain('--network');
@@ -57,21 +57,22 @@ describe('DockerSpawner', () => {
 
       // Check environment variables
       expect(args).toContain('SESSION_ID=abc123');
+      expect(args).toContain('APP_ID=blocks-cannons');
       expect(args).toContain('WITH_BOT=true');
       expect(args).toContain('BOT_DIFFICULTY=0.7');
 
-      // Check Traefik labels
+      // Check Traefik labels (now include appId in hostname)
       expect(args).toContain('traefik.enable=true');
       expect(args).toContain(
-        'traefik.http.routers.hbc-abc123.rule=Host(`abc123-hands-blocks-cannons.dx-tooling.org`)'
+        'traefik.http.routers.session-blocks-cannons-abc123.rule=Host(`abc123-blocks-cannons.dx-tooling.org`)'
       );
 
-      // Check image name is last
-      expect(args[args.length - 1]).toBe('hbc-game-session');
+      // Check image name is appId-prefixed
+      expect(args[args.length - 1]).toBe('blocks-cannons-game-session');
     });
 
     it('should call wrapper with correct arguments for human game', async () => {
-      await spawner.spawn('xyz789', false);
+      await spawner.spawn('xyz789', 'blocks-cannons', false);
 
       const [, args] = mockExecFile.mock.calls[0] as [string, string[]];
 
@@ -80,7 +81,7 @@ describe('DockerSpawner', () => {
     });
 
     it('should use default bot difficulty if not provided', async () => {
-      await spawner.spawn('test1', true);
+      await spawner.spawn('test1', 'blocks-cannons', true);
 
       const [, args] = mockExecFile.mock.calls[0] as [string, string[]];
 
@@ -97,13 +98,26 @@ describe('DockerSpawner', () => {
         return {} as ReturnType<typeof childProcess.execFile>;
       });
 
-      await expect(spawner.spawn('fail1', true)).rejects.toThrow();
+      await expect(spawner.spawn('fail1', 'blocks-cannons', true)).rejects.toThrow();
+    });
+
+    it('should use different image for different appId', async () => {
+      await spawner.spawn('abc123', 'other-app', true);
+
+      const [, args] = mockExecFile.mock.calls[0] as [string, string[]];
+
+      // Container name should include appId
+      const nameIndex = args.indexOf('--name');
+      expect(args[nameIndex + 1]).toBe('session-other-app-abc123');
+
+      // Image name should be appId-prefixed
+      expect(args[args.length - 1]).toBe('other-app-game-session');
     });
   });
 
   describe('stop', () => {
     it('should call wrapper with stop command', async () => {
-      await spawner.stop('hbc-session-abc123');
+      await spawner.stop('session-blocks-cannons-abc123');
 
       expect(mockExecFile).toHaveBeenCalledTimes(1);
       const [cmd, args] = mockExecFile.mock.calls[0] as [string, string[]];
@@ -111,13 +125,13 @@ describe('DockerSpawner', () => {
       expect(cmd).toBe('bash');
       expect(args[0]).toBe('/test/wrapper.sh');
       expect(args).toContain('stop');
-      expect(args).toContain('hbc-session-abc123');
+      expect(args).toContain('session-blocks-cannons-abc123');
     });
   });
 
   describe('remove', () => {
     it('should call wrapper with rm command', async () => {
-      await spawner.remove('hbc-session-abc123');
+      await spawner.remove('session-blocks-cannons-abc123');
 
       expect(mockExecFile).toHaveBeenCalledTimes(1);
       const [cmd, args] = mockExecFile.mock.calls[0] as [string, string[]];
@@ -125,7 +139,7 @@ describe('DockerSpawner', () => {
       expect(cmd).toBe('bash');
       expect(args[0]).toBe('/test/wrapper.sh');
       expect(args).toContain('rm');
-      expect(args).toContain('hbc-session-abc123');
+      expect(args).toContain('session-blocks-cannons-abc123');
     });
   });
 
@@ -134,7 +148,8 @@ describe('DockerSpawner', () => {
       mockExecFile.mockImplementation((_cmd, _args, callback) => {
         if (typeof callback === 'function') {
           callback(null, {
-            stdout: 'hbc-session-abc123 Up 5 minutes\nhbc-session-xyz789 Up 10 minutes\n',
+            stdout:
+              'session-blocks-cannons-abc123 Up 5 minutes\nsession-blocks-cannons-xyz789 Up 10 minutes\n',
             stderr: '',
           });
         }
@@ -144,8 +159,8 @@ describe('DockerSpawner', () => {
       const containers = await spawner.list();
 
       expect(containers).toHaveLength(2);
-      expect(containers[0]).toBe('hbc-session-abc123 Up 5 minutes');
-      expect(containers[1]).toBe('hbc-session-xyz789 Up 10 minutes');
+      expect(containers[0]).toBe('session-blocks-cannons-abc123 Up 5 minutes');
+      expect(containers[1]).toBe('session-blocks-cannons-xyz789 Up 10 minutes');
     });
 
     it('should return empty array when no containers', async () => {

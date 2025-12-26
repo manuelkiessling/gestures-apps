@@ -28,31 +28,40 @@ describe('SessionStore', () => {
 
   describe('create', () => {
     it('should create a bot session with correct properties', () => {
-      const session = store.create('abc123', 'bot');
+      const session = store.create('abc123', 'blocks-cannons', 'bot');
 
       expect(session.id).toBe('abc123');
+      expect(session.appId).toBe('blocks-cannons');
       expect(session.opponentType).toBe('bot');
       expect(session.status).toBe('starting');
-      expect(session.gameUrl).toBe('https://abc123-hands-blocks-cannons.dx-tooling.org');
+      expect(session.gameUrl).toBe('https://abc123-blocks-cannons.dx-tooling.org');
       expect(session.joinUrl).toBeNull();
-      expect(session.containerName).toBe('hbc-session-abc123');
+      expect(session.containerName).toBe('session-blocks-cannons-abc123');
       expect(session.createdAt).toBeInstanceOf(Date);
     });
 
     it('should create a human session with a join URL', () => {
-      const session = store.create('xyz789', 'human');
+      const session = store.create('xyz789', 'blocks-cannons', 'human');
 
       expect(session.id).toBe('xyz789');
       expect(session.opponentType).toBe('human');
-      expect(session.joinUrl).toBe('https://xyz789-hands-blocks-cannons.dx-tooling.org');
+      expect(session.joinUrl).toBe('https://xyz789-blocks-cannons.dx-tooling.org');
     });
 
     it('should store the session for later retrieval', () => {
-      store.create('test123', 'bot');
+      store.create('test123', 'blocks-cannons', 'bot');
 
       const retrieved = store.get('test123');
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe('test123');
+      expect(retrieved?.appId).toBe('blocks-cannons');
+    });
+
+    it('should use custom domain from config', () => {
+      const customStore = new SessionStore({ baseDomain: 'custom.example.com' });
+      const session = customStore.create('abc123', 'my-app', 'bot');
+
+      expect(session.gameUrl).toBe('https://abc123-my-app.custom.example.com');
     });
   });
 
@@ -64,7 +73,7 @@ describe('SessionStore', () => {
     });
 
     it('should return the session if it exists', () => {
-      store.create('existing', 'bot');
+      store.create('existing', 'blocks-cannons', 'bot');
 
       const session = store.get('existing');
       expect(session).toBeDefined();
@@ -74,7 +83,7 @@ describe('SessionStore', () => {
 
   describe('updateStatus', () => {
     it('should update session status', () => {
-      store.create('sess1', 'bot');
+      store.create('sess1', 'blocks-cannons', 'bot');
       store.updateStatus('sess1', 'active');
 
       const session = store.get('sess1');
@@ -82,7 +91,7 @@ describe('SessionStore', () => {
     });
 
     it('should set error message when provided', () => {
-      store.create('sess2', 'bot');
+      store.create('sess2', 'blocks-cannons', 'bot');
       store.updateStatus('sess2', 'error', 'Container failed to start');
 
       const session = store.get('sess2');
@@ -98,7 +107,7 @@ describe('SessionStore', () => {
 
   describe('delete', () => {
     it('should remove a session', () => {
-      store.create('todelete', 'bot');
+      store.create('todelete', 'blocks-cannons', 'bot');
       expect(store.get('todelete')).toBeDefined();
 
       const deleted = store.delete('todelete');
@@ -122,9 +131,9 @@ describe('SessionStore', () => {
     });
 
     it('should return all sessions', () => {
-      store.create('sess1', 'bot');
-      store.create('sess2', 'human');
-      store.create('sess3', 'bot');
+      store.create('sess1', 'blocks-cannons', 'bot');
+      store.create('sess2', 'blocks-cannons', 'human');
+      store.create('sess3', 'other-app', 'bot');
 
       const sessions = store.getAll();
 
@@ -133,10 +142,33 @@ describe('SessionStore', () => {
     });
   });
 
+  describe('getByAppId', () => {
+    it('should return sessions filtered by appId', () => {
+      store.create('sess1', 'blocks-cannons', 'bot');
+      store.create('sess2', 'blocks-cannons', 'human');
+      store.create('sess3', 'other-app', 'bot');
+
+      const bcSessions = store.getByAppId('blocks-cannons');
+      const otherSessions = store.getByAppId('other-app');
+
+      expect(bcSessions).toHaveLength(2);
+      expect(otherSessions).toHaveLength(1);
+      expect(otherSessions[0]?.id).toBe('sess3');
+    });
+
+    it('should return empty array for unknown appId', () => {
+      store.create('sess1', 'blocks-cannons', 'bot');
+
+      const sessions = store.getByAppId('unknown-app');
+
+      expect(sessions).toEqual([]);
+    });
+  });
+
   describe('cleanup', () => {
     it('should remove old ended sessions', () => {
       // Create a session and mark it as ended
-      store.create('old1', 'bot');
+      store.create('old1', 'blocks-cannons', 'bot');
       store.updateStatus('old1', 'ended');
 
       // Manually set createdAt to 2 hours ago
@@ -152,7 +184,7 @@ describe('SessionStore', () => {
     });
 
     it('should remove old error sessions', () => {
-      store.create('error1', 'bot');
+      store.create('error1', 'blocks-cannons', 'bot');
       store.updateStatus('error1', 'error', 'Test error');
 
       const session = store.get('error1');
@@ -167,7 +199,7 @@ describe('SessionStore', () => {
     });
 
     it('should not remove active sessions', () => {
-      store.create('active1', 'bot');
+      store.create('active1', 'blocks-cannons', 'bot');
       store.updateStatus('active1', 'active');
 
       const session = store.get('active1');
@@ -182,7 +214,7 @@ describe('SessionStore', () => {
     });
 
     it('should not remove recent ended sessions', () => {
-      store.create('recent1', 'bot');
+      store.create('recent1', 'blocks-cannons', 'bot');
       store.updateStatus('recent1', 'ended');
       // createdAt is already recent (just created)
 

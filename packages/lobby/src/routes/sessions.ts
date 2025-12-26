@@ -1,3 +1,8 @@
+import {
+  type AppManifest,
+  AppNotFoundError,
+  globalRegistry,
+} from '@gesture-app/framework-protocol';
 import { type Request, type Response, Router } from 'express';
 import { DockerSpawner } from '../services/DockerSpawner.js';
 import type { SessionStore } from '../services/SessionStore.js';
@@ -7,9 +12,26 @@ import type {
   SessionStatusResponse,
 } from '../types.js';
 
+/**
+ * Validate that an appId exists in the registry.
+ * @returns The app manifest if found
+ * @throws AppNotFoundError if not found
+ */
+function validateAppId(appId: string): AppManifest {
+  return globalRegistry.get(appId);
+}
+
 export function createSessionRouter(sessionStore: SessionStore): Router {
   const router = Router();
   const dockerSpawner = new DockerSpawner();
+
+  /**
+   * GET /api/apps - List available applications
+   */
+  router.get('/apps', (_req: Request, res: Response) => {
+    const apps = globalRegistry.listAll();
+    res.json({ apps });
+  });
 
   /**
    * POST /api/sessions - Create a new game session
@@ -17,8 +39,29 @@ export function createSessionRouter(sessionStore: SessionStore): Router {
   router.post('/', async (req: Request, res: Response) => {
     try {
       const body = req.body as CreateSessionRequest;
-      const { opponentType, botDifficulty } = body;
+      const { appId, opponentType, botDifficulty } = body;
 
+      // Validate appId
+      if (!appId || typeof appId !== 'string') {
+        res.status(400).json({ error: 'appId is required' });
+        return;
+      }
+
+      // Validate appId exists in registry
+      try {
+        validateAppId(appId);
+      } catch (err) {
+        if (err instanceof AppNotFoundError) {
+          res.status(400).json({
+            error: `Unknown application: ${appId}`,
+            availableApps: globalRegistry.listIds(),
+          });
+          return;
+        }
+        throw err;
+      }
+
+      // Validate opponentType
       if (!opponentType || (opponentType !== 'bot' && opponentType !== 'human')) {
         res.status(400).json({ error: 'Invalid opponentType. Must be "bot" or "human".' });
         return;
@@ -26,11 +69,11 @@ export function createSessionRouter(sessionStore: SessionStore): Router {
 
       // Generate session ID and create session record
       const sessionId = sessionStore.generateSessionId();
-      const session = sessionStore.create(sessionId, opponentType);
+      const session = sessionStore.create(sessionId, appId, opponentType);
 
       // Spawn Docker container
       try {
-        await dockerSpawner.spawn(sessionId, opponentType === 'bot', botDifficulty);
+        await dockerSpawner.spawn(sessionId, appId, opponentType === 'bot', botDifficulty);
         sessionStore.updateStatus(sessionId, opponentType === 'bot' ? 'active' : 'waiting');
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to spawn container';
@@ -41,6 +84,7 @@ export function createSessionRouter(sessionStore: SessionStore): Router {
 
       const response: CreateSessionResponse = {
         sessionId: session.id,
+        appId: session.appId,
         gameUrl: session.gameUrl,
         joinUrl: session.joinUrl,
       };
@@ -66,6 +110,7 @@ export function createSessionRouter(sessionStore: SessionStore): Router {
 
     const response: SessionStatusResponse = {
       sessionId: session.id,
+      appId: session.appId,
       status: session.status,
       gameUrl: session.gameUrl,
       joinUrl: session.joinUrl,

@@ -9,6 +9,8 @@ export type SessionStatus = 'starting' | 'waiting' | 'active' | 'ended' | 'error
 export interface GameSession {
   /** Unique session identifier (alphanumeric, lowercase) */
   id: string;
+  /** Application identifier */
+  appId: string;
   /** Type of opponent */
   opponentType: OpponentType;
   /** Current session status */
@@ -26,18 +28,24 @@ export interface GameSession {
 }
 
 export interface CreateSessionRequest {
+  /** Application identifier (must be registered in app registry) */
+  appId: string;
+  /** Type of opponent */
   opponentType: OpponentType;
+  /** Bot difficulty (0.0 - 1.0), only used when opponentType is 'bot' */
   botDifficulty?: number;
 }
 
 export interface CreateSessionResponse {
   sessionId: string;
+  appId: string;
   gameUrl: string;
   joinUrl: string | null;
 }
 
 export interface SessionStatusResponse {
   sessionId: string;
+  appId: string;
   status: SessionStatus;
   gameUrl: string;
   joinUrl: string | null;

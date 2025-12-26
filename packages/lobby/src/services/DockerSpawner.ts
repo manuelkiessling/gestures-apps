@@ -4,26 +4,66 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 /**
+ * Configuration for Docker spawner.
+ */
+export interface DockerSpawnerConfig {
+  /** Path to the docker wrapper script */
+  wrapperPath: string;
+  /** Base image name (will be prefixed with appId) */
+  baseImageName: string;
+  /** Docker network name */
+  network: string;
+  /** Base domain for routing */
+  baseDomain: string;
+}
+
+/**
+ * Default configuration.
+ */
+const DEFAULT_CONFIG: DockerSpawnerConfig = {
+  wrapperPath: '/app/bin/docker-cli-wrapper.sh',
+  baseImageName: 'game-session',
+  network: 'outermost_router',
+  baseDomain: 'dx-tooling.org',
+};
+
+/**
  * Docker spawner that uses the docker-cli-wrapper.sh script.
  */
 export class DockerSpawner {
-  private readonly wrapperPath: string;
-  private readonly imageName = 'hbc-game-session';
-  private readonly network = 'outermost_router';
-  private readonly baseDomain = 'hands-blocks-cannons.dx-tooling.org';
+  private readonly config: DockerSpawnerConfig;
 
-  constructor() {
+  constructor(config: Partial<DockerSpawnerConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+    // Allow environment variable override for wrapper path
     // biome-ignore lint/complexity/useLiteralKeys: Required for noPropertyAccessFromIndexSignature
-    this.wrapperPath = process.env['DOCKER_WRAPPER_PATH'] || '/app/bin/docker-cli-wrapper.sh';
+    if (process.env['DOCKER_WRAPPER_PATH']) {
+      // biome-ignore lint/complexity/useLiteralKeys: Required for noPropertyAccessFromIndexSignature
+      this.config.wrapperPath = process.env['DOCKER_WRAPPER_PATH'];
+    }
+  }
+
+  /**
+   * Get the image name for an app.
+   * Format: {appId}-{baseImageName}
+   */
+  private getImageName(appId: string): string {
+    return `${appId}-${this.config.baseImageName}`;
   }
 
   /**
    * Spawn a new game session container.
    */
-  async spawn(sessionId: string, withBot: boolean, botDifficulty = 0.5): Promise<void> {
-    const containerName = `hbc-session-${sessionId}`;
-    const hostname = `${sessionId}-${this.baseDomain}`;
-    const routerName = `hbc-${sessionId}`;
+  async spawn(
+    sessionId: string,
+    appId: string,
+    withBot: boolean,
+    botDifficulty = 0.5
+  ): Promise<void> {
+    const containerName = `session-${appId}-${sessionId}`;
+    const hostname = `${sessionId}-${appId}.${this.config.baseDomain}`;
+    const routerName = `session-${appId}-${sessionId}`;
+    const imageName = this.getImageName(appId);
 
     const args = [
       'run',
@@ -32,10 +72,12 @@ export class DockerSpawner {
       '--name',
       containerName,
       '--network',
-      this.network,
+      this.config.network,
       // Environment variables
       '-e',
       `SESSION_ID=${sessionId}`,
+      '-e',
+      `APP_ID=${appId}`,
       '-e',
       `WITH_BOT=${withBot}`,
       '-e',
@@ -46,7 +88,7 @@ export class DockerSpawner {
       '-l',
       'outermost_router.enable=true',
       '-l',
-      `traefik.docker.network=${this.network}`,
+      `traefik.docker.network=${this.config.network}`,
       '-l',
       `traefik.http.routers.${routerName}.rule=Host(\`${hostname}\`)`,
       '-l',
@@ -56,7 +98,7 @@ export class DockerSpawner {
       '-l',
       `traefik.http.services.${routerName}.loadbalancer.server.port=80`,
       // Image
-      this.imageName,
+      imageName,
     ];
 
     try {
@@ -119,7 +161,7 @@ export class DockerSpawner {
    */
   private async exec(args: string[]): Promise<{ stdout: string; stderr: string }> {
     try {
-      return await execFileAsync('bash', [this.wrapperPath, ...args]);
+      return await execFileAsync('bash', [this.config.wrapperPath, ...args]);
     } catch (err) {
       if (err instanceof Error && 'stderr' in err) {
         throw new Error(`Docker command failed: ${(err as { stderr: string }).stderr}`);
