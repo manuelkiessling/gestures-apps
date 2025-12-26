@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { type ClientConfig, type ConnectionState, FRAMEWORK_CLIENT_VERSION } from '../src/index.js';
+import {
+  type ConnectionState,
+  DEFAULT_CLIENT_CONFIG,
+  FRAMEWORK_CLIENT_VERSION,
+  type SessionClientConfig,
+} from '../src/index.js';
 
 describe('framework-client', () => {
   describe('smoke test', () => {
@@ -7,26 +12,24 @@ describe('framework-client', () => {
       expect(FRAMEWORK_CLIENT_VERSION).toBe('1.0.0');
     });
 
-    it('should allow creating client config', () => {
-      const config: ClientConfig = {
-        wsUrl: 'wss://example.com/ws',
-        lobbyUrl: 'https://lobby.example.com',
-      };
-      expect(config.wsUrl).toBe('wss://example.com/ws');
-      expect(config.lobbyUrl).toBe('https://lobby.example.com');
+    it('should export default client config', () => {
+      expect(DEFAULT_CLIENT_CONFIG.autoReconnect).toBe(false);
+      expect(DEFAULT_CLIENT_CONFIG.reconnectDelayMs).toBe(1000);
+      expect(DEFAULT_CLIENT_CONFIG.maxReconnectAttempts).toBe(5);
     });
 
-    it('should allow null lobby URL', () => {
-      const config: ClientConfig = {
-        wsUrl: 'ws://localhost:3001',
-        lobbyUrl: null,
+    it('should allow creating custom client config', () => {
+      const config: SessionClientConfig = {
+        autoReconnect: true,
+        reconnectDelayMs: 500,
+        maxReconnectAttempts: 3,
       };
-      expect(config.lobbyUrl).toBeNull();
+      expect(config.autoReconnect).toBe(true);
     });
 
     it('should export connection state type', () => {
-      const states: ConnectionState[] = ['disconnected', 'connecting', 'connected'];
-      expect(states).toHaveLength(3);
+      const states: ConnectionState[] = ['disconnected', 'connecting', 'connected', 'error'];
+      expect(states).toHaveLength(4);
     });
   });
 });

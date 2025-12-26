@@ -3,10 +3,11 @@
  *
  * This package provides the core client runtime for two-participant,
  * WebSocket-networked, hand-gesture-driven applications. It handles:
- * - WebSocket connection lifecycle
- * - Lifecycle overlays and standardized UX flows
- * - Hand input provider abstraction (hiding MediaPipe details)
- * - Message dispatch to app handlers
+ * - WebSocket connection management
+ * - Session lifecycle (waiting → playing → finished)
+ * - Ready-state signaling
+ * - Play-again voting coordination
+ * - Message routing to app handlers
  */
 
 import type {
@@ -18,20 +19,15 @@ import type {
 // Re-export protocol types for convenience
 export type { ParticipantId, ParticipantNumber, SessionPhase };
 
-/**
- * Connection state.
- */
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected';
-
-/**
- * Client configuration.
- */
-export interface ClientConfig {
-  /** WebSocket URL */
-  readonly wsUrl: string;
-  /** Lobby URL for "return to lobby" functionality */
-  readonly lobbyUrl: string | null;
-}
+// Export session client
+export {
+  type ConnectionState,
+  DEFAULT_CLIENT_CONFIG,
+  SessionClient,
+  type SessionClientConfig,
+  type SessionClientEvents,
+  type SessionWelcomeData,
+} from './SessionClient.js';
 
 /**
  * Framework client version.

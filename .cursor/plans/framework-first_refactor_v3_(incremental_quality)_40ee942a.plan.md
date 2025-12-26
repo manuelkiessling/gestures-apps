@@ -27,7 +27,7 @@ todos:
       - portion2-split-shared-with-tests
   - id: portion4-framework-client-with-tests
     content: Implement framework-client runtime and port client logic into blocks-cannons app; add framework-client lifecycle/dispatch tests now.
-    status: pending
+    status: completed
     dependencies:
       - portion2-split-shared-with-tests
   - id: portion5-app-registry
@@ -423,4 +423,53 @@ Update:
 
 ---
 
-### Portion 4 — Framework Client Runtime (NEXT)
+### Portion 4 — Framework Client Runtime (COMPLETED)
+
+**Started**: 2025-12-26
+**Completed**: 2025-12-26
+
+**Design decisions**:
+
+- `SessionClient<TClientMessage, TServerMessage, TWelcomeData>` handles all client-side lifecycle concerns
+- **Framework-level** (generic to all 2-participant apps):
+  - WebSocket connection management (connect, disconnect, reconnect)
+  - Connection state tracking: `disconnected → connecting → connected → error`
+  - Session lifecycle events: welcome, opponent join/leave, start, end, reset
+  - Ready-state signaling (`sendReady()`)
+  - Play-again voting (`sendPlayAgainVote()`)
+  - Automatic reconnection (optional, configurable)
+- **App-level** (delegated via event handlers):
+  - `onAppMessage(message)`: Handle app-specific messages (block_grab, projectile_*, etc.)
+  - App-specific welcome data passed through as `appData`
+- Backwards-compatible: supports both old field names (`playerId`, `playerNumber`, `gamePhase`, `game_started`, `game_over`, `game_reset`) and new (`participantId`, `participantNumber`, `sessionPhase`, `session_started`, etc.)
+- Framework message types are handled internally and routed to lifecycle handlers
+- Non-framework message types are routed to `onAppMessage` for app handling
+
+**Files created/modified**:
+
+- `packages/framework/client/src/SessionClient.ts` — Core session client implementation
+- `packages/framework/client/src/index.ts` — Updated exports
+- `packages/framework/client/tests/SessionClient.test.ts` — 28 comprehensive tests covering:
+  - Connection management (states, connect, disconnect)
+  - Welcome handling (new and backwards-compat field names)
+  - Session lifecycle (start, end, opponent events)
+  - Play-again flow (status, reset)
+  - Outgoing messages (ready, vote, app messages)
+  - App message routing
+  - Reconnection (auto, max attempts, cancel)
+  - State reset on disconnect
+- `packages/framework/client/tests/client.test.ts` — Updated smoke tests
+
+**Progress**:
+
+- [x] Analyze client code for framework vs app concerns
+- [x] Design SessionClient with lifecycle phases including play-again
+- [x] Implement SessionClient in framework-client
+- [x] Add comprehensive framework-client tests
+- [x] Run quality gate (npm run validate)
+
+**Quality gate**: ✓ All 337 tests pass (28 new SessionClient tests)
+
+---
+
+### Portion 5 — App Registry (NEXT)
