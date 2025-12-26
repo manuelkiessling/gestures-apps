@@ -83,6 +83,8 @@ graph TD
   Protocol -->|schemas+types| AppHooks
 ```
 
+
+
 ### Phase 1 — Make `@gesture-app/framework-protocol` the real contract
 
 - **Define all framework messages as Zod schemas + TS types** in:
@@ -179,4 +181,3 @@ graph TD
 - No legacy message names remain (`game_*`, `player_*`) anywhere in `packages/`.
 - No `as unknown as` used to cross the wire at the framework boundary.
 - `hello-hands` and `blocks-cannons` both:
-- connect via `resolveSessionConfig()`

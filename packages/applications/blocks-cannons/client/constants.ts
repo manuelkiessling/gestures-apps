@@ -161,31 +161,15 @@ export const LASER_BEAM = {
 
 // ============ MediaPipe Configuration ============
 
-export const MEDIAPIPE = {
-  /** Local path to MediaPipe hands assets (copied by vite-plugin-static-copy) */
-  HANDS_PATH: './mediapipe/hands/',
-  /** Maximum number of hands to track */
-  MAX_HANDS: 2,
-  /** Model complexity (0-2) */
-  MODEL_COMPLEXITY: 1,
-  /** Minimum detection confidence */
-  MIN_DETECTION_CONFIDENCE: 0.7,
-  /** Minimum tracking confidence */
-  MIN_TRACKING_CONFIDENCE: 0.5,
-  /** Video dimensions */
-  VIDEO_WIDTH: 640,
-  VIDEO_HEIGHT: 480,
-} as const;
+// Import from framework-input and re-export with app-specific name
+import { DEFAULT_MEDIAPIPE_CONFIG, LANDMARKS } from '@gesture-app/framework-input';
+
+export const MEDIAPIPE = DEFAULT_MEDIAPIPE_CONFIG;
 
 // ============ Hand Landmark Indices ============
 
-export const HAND_LANDMARKS = {
-  WRIST: 0,
-  THUMB_TIP: 4,
-  INDEX_TIP: 8,
-  /** Total number of landmarks */
-  COUNT: 21,
-} as const;
+// Re-export framework landmarks with app-specific alias for backwards compatibility
+export const HAND_LANDMARKS = LANDMARKS;
 
 // ============ Hand Visualization Constants ============
 

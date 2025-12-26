@@ -11,6 +11,14 @@ import type {
   WallGridConfig,
 } from '../src/shared/index.js';
 
+// Re-export hand tracking types from framework-input
+export type {
+  Handedness,
+  HandLandmarks,
+  MultiHandResult,
+  Point3D as HandLandmark,
+  TrackedHand,
+} from '@gesture-app/framework-input';
 // Re-export shared types for convenience
 export type {
   Block,
@@ -25,42 +33,6 @@ export type {
   RoomBounds,
   WallGridConfig,
 } from '../src/shared/index.js';
-
-/**
- * MediaPipe hand landmark.
- */
-export interface HandLandmark {
-  x: number;
-  y: number;
-  z: number;
-}
-
-/**
- * Array of hand landmarks from MediaPipe (21 landmarks per hand).
- */
-export type HandLandmarks = HandLandmark[];
-
-/**
- * Handedness label from MediaPipe.
- * Note: "Left" means it appears on the left side of the camera image,
- * which is actually the user's right hand (mirror effect).
- */
-export type Handedness = 'Left' | 'Right';
-
-/**
- * A single tracked hand with landmarks and handedness.
- */
-export interface TrackedHand {
-  landmarks: HandLandmarks;
-  handedness: Handedness;
-  /** Confidence score for handedness classification (0-1) */
-  score: number;
-}
-
-/**
- * Result from hand tracking containing all detected hands.
- */
-export type MultiHandResult = TrackedHand[];
 
 /**
  * Extended block data with Three.js mesh and local state.

@@ -1,104 +1,26 @@
 /**
  * @fileoverview MediaPipe hand tracking for Hello Hands.
  *
- * Tracks hand position, gestures, and provides all 21 landmarks for visualization.
+ * This is a single-hand tracking wrapper that uses the framework-input
+ * utilities for gesture detection and provides a simplified HandState interface.
  */
 
+import {
+  DEFAULT_MEDIAPIPE_CONFIG,
+  extractLandmarks2D,
+  type HandLandmarks,
+  type HandState,
+  isHandRaised,
+  isPinching,
+  LANDMARKS,
+  type Point2D,
+} from '@gesture-app/framework-input';
 import { Camera } from '@mediapipe/camera_utils';
 import { Hands } from '@mediapipe/hands';
 
-/** MediaPipe configuration */
-const MEDIAPIPE_CONFIG = {
-  HANDS_PATH: './mediapipe/hands/',
-  MAX_HANDS: 1, // Only track one hand for simplicity
-  MODEL_COMPLEXITY: 1,
-  MIN_DETECTION_CONFIDENCE: 0.7,
-  MIN_TRACKING_CONFIDENCE: 0.5,
-  VIDEO_WIDTH: 640,
-  VIDEO_HEIGHT: 480,
-} as const;
-
-/** Hand landmark indices */
-export const LANDMARKS = {
-  WRIST: 0,
-  THUMB_CMC: 1,
-  THUMB_MCP: 2,
-  THUMB_IP: 3,
-  THUMB_TIP: 4,
-  INDEX_MCP: 5,
-  INDEX_PIP: 6,
-  INDEX_DIP: 7,
-  INDEX_TIP: 8,
-  MIDDLE_MCP: 9,
-  MIDDLE_PIP: 10,
-  MIDDLE_DIP: 11,
-  MIDDLE_TIP: 12,
-  RING_MCP: 13,
-  RING_PIP: 14,
-  RING_DIP: 15,
-  RING_TIP: 16,
-  PINKY_MCP: 17,
-  PINKY_PIP: 18,
-  PINKY_DIP: 19,
-  PINKY_TIP: 20,
-} as const;
-
-/** Connections between landmarks for drawing the skeleton */
-export const HAND_CONNECTIONS: [number, number][] = [
-  // Palm
-  [0, 1],
-  [0, 5],
-  [0, 17],
-  [5, 9],
-  [9, 13],
-  [13, 17],
-  // Thumb
-  [1, 2],
-  [2, 3],
-  [3, 4],
-  // Index finger
-  [5, 6],
-  [6, 7],
-  [7, 8],
-  // Middle finger
-  [9, 10],
-  [10, 11],
-  [11, 12],
-  // Ring finger
-  [13, 14],
-  [14, 15],
-  [15, 16],
-  // Pinky finger
-  [17, 18],
-  [18, 19],
-  [19, 20],
-];
-
-/** Pinch detection threshold (normalized distance) */
-const PINCH_THRESHOLD = 0.08;
-
-/** Raised hand detection threshold (wrist Y position) */
-const RAISED_THRESHOLD = 0.4;
-
-/** A single 2D point */
-export interface Point2D {
-  x: number;
-  y: number;
-}
-
-/**
- * Hand state with full landmark data for visualization.
- */
-export interface HandState {
-  /** Normalized position (0-1 range, center of palm) */
-  position: Point2D;
-  /** All 21 hand landmarks (normalized 0-1 coordinates) */
-  landmarks: Point2D[];
-  /** Whether thumb and index are pinched together */
-  isPinching: boolean;
-  /** Whether hand is raised above threshold */
-  isRaised: boolean;
-}
+// Re-export framework types and constants for convenience
+export { HAND_CONNECTIONS, LANDMARKS } from '@gesture-app/framework-input';
+export type { HandState, Point2D };
 
 /**
  * Callback for hand tracking updates.
@@ -106,7 +28,9 @@ export interface HandState {
 export type HandCallback = (hand: HandState | null) => void;
 
 /**
- * Manages MediaPipe hand tracking.
+ * Manages single-hand MediaPipe hand tracking for Hello Hands.
+ *
+ * Returns a simplified HandState with gesture detection results.
  */
 export class HandTracker {
   private hands: Hands | null = null;
@@ -128,31 +52,31 @@ export class HandTracker {
     // Get camera stream
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        width: MEDIAPIPE_CONFIG.VIDEO_WIDTH,
-        height: MEDIAPIPE_CONFIG.VIDEO_HEIGHT,
+        width: DEFAULT_MEDIAPIPE_CONFIG.VIDEO_WIDTH,
+        height: DEFAULT_MEDIAPIPE_CONFIG.VIDEO_HEIGHT,
         facingMode: 'user',
       },
     });
     this.video.srcObject = stream;
     await this.video.play();
 
-    // Initialize MediaPipe Hands
+    // Initialize MediaPipe Hands with single-hand config
     this.hands = new Hands({
-      locateFile: (file: string) => `${MEDIAPIPE_CONFIG.HANDS_PATH}${file}`,
+      locateFile: (file: string) => `${DEFAULT_MEDIAPIPE_CONFIG.HANDS_PATH}${file}`,
     });
 
     this.hands.setOptions({
-      maxNumHands: MEDIAPIPE_CONFIG.MAX_HANDS,
-      modelComplexity: MEDIAPIPE_CONFIG.MODEL_COMPLEXITY,
-      minDetectionConfidence: MEDIAPIPE_CONFIG.MIN_DETECTION_CONFIDENCE,
-      minTrackingConfidence: MEDIAPIPE_CONFIG.MIN_TRACKING_CONFIDENCE,
+      maxNumHands: 1, // Single-hand tracking for simplicity
+      modelComplexity: DEFAULT_MEDIAPIPE_CONFIG.MODEL_COMPLEXITY,
+      minDetectionConfidence: DEFAULT_MEDIAPIPE_CONFIG.MIN_DETECTION_CONFIDENCE,
+      minTrackingConfidence: DEFAULT_MEDIAPIPE_CONFIG.MIN_TRACKING_CONFIDENCE,
     });
 
     this.hands.onResults((results) => {
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         const landmarks = results.multiHandLandmarks[0];
         if (landmarks) {
-          const handState = this.extractHandState(landmarks);
+          const handState = this.extractHandState(landmarks as HandLandmarks);
           this.callback?.(handState);
         }
       } else {
@@ -167,39 +91,40 @@ export class HandTracker {
           await this.hands.send({ image: this.video });
         }
       },
-      width: MEDIAPIPE_CONFIG.VIDEO_WIDTH,
-      height: MEDIAPIPE_CONFIG.VIDEO_HEIGHT,
+      width: DEFAULT_MEDIAPIPE_CONFIG.VIDEO_WIDTH,
+      height: DEFAULT_MEDIAPIPE_CONFIG.VIDEO_HEIGHT,
     });
   }
 
   /**
-   * Extract hand state from landmarks, including all 21 points for visualization.
+   * Extract hand state from landmarks using framework utilities.
    */
-  private extractHandState(rawLandmarks: { x: number; y: number; z: number }[]): HandState {
+  private extractHandState(rawLandmarks: HandLandmarks): HandState {
     const wrist = rawLandmarks[LANDMARKS.WRIST];
-    const thumbTip = rawLandmarks[LANDMARKS.THUMB_TIP];
     const indexTip = rawLandmarks[LANDMARKS.INDEX_TIP];
     const middleTip = rawLandmarks[LANDMARKS.MIDDLE_TIP];
 
     // Calculate palm center (average of key points)
-    const palmX = (wrist.x + indexTip.x + middleTip.x) / 3;
-    const palmY = (wrist.y + indexTip.y + middleTip.y) / 3;
+    const position: Point2D =
+      wrist && indexTip && middleTip
+        ? {
+            x: (wrist.x + indexTip.x + middleTip.x) / 3,
+            y: (wrist.y + indexTip.y + middleTip.y) / 3,
+          }
+        : { x: 0.5, y: 0.5 };
 
-    // Detect pinch (thumb and index finger close together)
-    const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-    const isPinching = pinchDist < PINCH_THRESHOLD;
+    // Use framework gesture detection utilities
+    const pinching = isPinching(rawLandmarks);
+    const raised = isHandRaised(rawLandmarks);
 
-    // Detect raised hand (wrist above threshold)
-    const isRaised = wrist.y < RAISED_THRESHOLD;
-
-    // Extract all landmarks as 2D points
-    const landmarks: Point2D[] = rawLandmarks.map((lm) => ({ x: lm.x, y: lm.y }));
+    // Extract 2D landmarks using framework utility
+    const landmarks = extractLandmarks2D(rawLandmarks);
 
     return {
-      position: { x: palmX, y: palmY },
+      position,
       landmarks,
-      isPinching,
-      isRaised,
+      isPinching: pinching,
+      isRaised: raised,
     };
   }
 
